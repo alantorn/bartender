@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Bartender</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0f0f11; color: #e8e8f0;
+    font-family: system-ui, sans-serif; font-size: 12px;
+    padding: 16px; display: flex; flex-direction: column; gap: 12px;
+  }
+  label { font-size: 10px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.08em; color: #6b6b80; display: block; margin-bottom: 5px; }
+  .btn {
+    width: 100%; padding: 8px; background: #5b8fff; color: white;
+    border: none; border-radius: 6px; font-size: 12px; font-weight: 600;
+    cursor: pointer;
+  }
+  .btn:hover { background: #4a7bee; }
+  .btn-ghost {
+    background: transparent; border: 1px solid #2a2a32; color: #6b6b80;
+  }
+  .btn-ghost:hover { border-color: #5b8fff; color: #5b8fff; }
+  .log {
+    background: #1a1a1f; border: 1px solid #2a2a32; border-radius: 6px;
+    padding: 10px; font-family: monospace; font-size: 11px;
+    line-height: 1.7; color: #6b6b80; min-height: 60px;
+    white-space: pre-wrap;
+  }
+  #file-name { font-size: 10px; color: #6b6b80; font-family: monospace; margin-top: 4px; }
+  .titles-preview { font-size: 10px; color: #a78bfa; font-family: monospace; margin-top: 4px; }
+</style>
+</head>
+<body>
+
+<div>
+  <label>CSV File</label>
+  <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleFile(event)" />
+  <button class="btn btn-ghost" onclick="document.getElementById('csv-file').click()">📂 Choose CSV File</button>
+  <div id="file-name"></div>
+  <div class="titles-preview" id="titles-preview"></div>
+</div>
+
+<button class="btn" onclick="sync()">Sync to Figma</button>
+
+<div>
+  <label>Log</label>
+  <div class="log" id="log">Pick a CSV file, then click Sync.</div>
+</div>
+
+<script>
+  let parsedTitles = []
+
+  function handleFile(event) {
+    const file = event.target.files[0]
+    if (!file) return
+    document.getElementById('file-name').textContent = file.name
+
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      const text = e.target.result
+      parsedTitles = extractTitles(text)
+      document.getElementById('titles-preview').textContent =
+        parsedTitles.length
+          ? 'Found: ' + parsedTitles.join(', ')
+          : '⚠ No titles found.'
+    }
+    reader.readAsText(file)
+  }
+
+  function extractTitles(text) {
+    // Split into blocks by blank lines, take first cell of first row of each block
+    const lines = text.split('\n')
+    const titles = []
+    let inBlock = false
+
+    for (const line of lines) {
+      const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
+      const isEmpty = cells.every(c => !c)
+
+      if (isEmpty) {
+        inBlock = false
+        continue
+      }
+
+      if (!inBlock && cells[0]) {
+        titles.push(cells[0])
+        inBlock = true
+      }
+    }
+
+    return titles
+  }
+
+  function sync() {
+    if (!parsedTitles.length) {
+      document.getElementById('log').textContent = '⚠ No titles parsed yet. Pick a CSV first.'
+      return
+    }
+    document.getElementById('log').textContent = `Syncing ${parsedTitles.length} chart(s)…`
+    parent.postMessage({ pluginMessage: { type: 'sync-csv', titles: parsedTitles } }, '*')
+  }
+
+  window.onmessage = (event) => {
+    const msg = event.data.pluginMessage
+    if (!msg || msg.type !== 'done') return
+    document.getElementById('log').textContent = msg.logs.join('\n')
+  }
+</script>
+</body>
+</html>

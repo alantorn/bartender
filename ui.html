@@ -1,112 +1,254 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-<meta charset="UTF-8" />
-<title>Bartender</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    background: #0f0f11; color: #e8e8f0;
-    font-family: system-ui, sans-serif; font-size: 12px;
-    padding: 16px; display: flex; flex-direction: column; gap: 12px;
-  }
-  label { font-size: 10px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.08em; color: #6b6b80; display: block; margin-bottom: 5px; }
-  .btn {
-    width: 100%; padding: 8px; background: #5b8fff; color: white;
-    border: none; border-radius: 6px; font-size: 12px; font-weight: 600;
-    cursor: pointer;
-  }
-  .btn:hover { background: #4a7bee; }
-  .btn-ghost {
-    background: transparent; border: 1px solid #2a2a32; color: #6b6b80;
-  }
-  .btn-ghost:hover { border-color: #5b8fff; color: #5b8fff; }
-  .log {
-    background: #1a1a1f; border: 1px solid #2a2a32; border-radius: 6px;
-    padding: 10px; font-family: monospace; font-size: 11px;
-    line-height: 1.7; color: #6b6b80; min-height: 60px;
-    white-space: pre-wrap;
-  }
-  #file-name { font-size: 10px; color: #6b6b80; font-family: monospace; margin-top: 4px; }
-  .titles-preview { font-size: 10px; color: #a78bfa; font-family: monospace; margin-top: 4px; }
-</style>
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Bartender</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        background: #0f0f11;
+        color: #e8e8f0;
+        font-family: system-ui, sans-serif;
+        font-size: 12px;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      label {
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #6b6b80;
+        display: block;
+        margin-bottom: 5px;
+      }
+      .btn {
+        width: 100%;
+        padding: 8px;
+        background: #5b8fff;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      .btn:hover {
+        background: #4a7bee;
+      }
+      .btn-ghost {
+        background: transparent;
+        border: 1px solid #2a2a32;
+        color: #6b6b80;
+      }
+      .btn-ghost:hover {
+        border-color: #5b8fff;
+        color: #5b8fff;
+      }
+      .log {
+        background: #1a1a1f;
+        border: 1px solid #2a2a32;
+        border-radius: 6px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 11px;
+        line-height: 1.7;
+        color: #6b6b80;
+        min-height: 60px;
+        white-space: pre-wrap;
+      }
+      #file-name {
+        font-size: 10px;
+        color: #6b6b80;
+        font-family: monospace;
+        margin-top: 4px;
+      }
+      .titles-preview {
+        font-size: 10px;
+        color: #a78bfa;
+        font-family: monospace;
+        margin-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <label>Data Format</label>
+      <select
+        id="format-select"
+        style="width:100%;padding:6px 8px;background:#1a1a1f;border:1px solid #2a2a32;border-radius:6px;color:#e8e8f0;font-size:12px;"
+      >
+        <option value="column">Scientist CSV (X Axis / Y Axis / Category columns)</option>
+        <option value="block">Block CSV (blank-line separated blocks)</option>
+      </select>
+    </div>
 
-<div>
-  <label>CSV File</label>
-  <input type="file" id="csv-file" accept=".csv" style="display:none" onchange="handleFile(event)" />
-  <button class="btn btn-ghost" onclick="document.getElementById('csv-file').click()">📂 Choose CSV File</button>
-  <div id="file-name"></div>
-  <div class="titles-preview" id="titles-preview"></div>
-</div>
+    <div>
+      <label>CSV File</label>
+      <input
+        type="file"
+        id="csv-file"
+        accept=".csv"
+        style="display: none"
+        onchange="handleFile(event)"
+      />
+      <button
+        class="btn btn-ghost"
+        onclick="document.getElementById('csv-file').click()"
+      >
+        📂 Choose CSV File
+      </button>
+      <div id="file-name"></div>
+      <div class="titles-preview" id="titles-preview"></div>
+    </div>
 
-<button class="btn" onclick="sync()">Sync to Figma</button>
+    <button class="btn" onclick="sync()">Sync to Figma</button>
 
-<div>
-  <label>Log</label>
-  <div class="log" id="log">Pick a CSV file, then click Sync.</div>
-</div>
+    <div>
+      <label>Log</label>
+      <div class="log" id="log">Pick a CSV file, then click Sync.</div>
+    </div>
 
-<script>
-  let parsedTitles = []
+    <script>
+      let parsedBlocks = []
 
-  function handleFile(event) {
-    const file = event.target.files[0]
-    if (!file) return
-    document.getElementById('file-name').textContent = file.name
-
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const text = e.target.result
-      parsedTitles = extractTitles(text)
-      document.getElementById('titles-preview').textContent =
-        parsedTitles.length
-          ? 'Found: ' + parsedTitles.join(', ')
-          : '⚠ No titles found.'
-    }
-    reader.readAsText(file)
-  }
-
-  function extractTitles(text) {
-    // Split into blocks by blank lines, take first cell of first row of each block
-    const lines = text.split('\n')
-    const titles = []
-    let inBlock = false
-
-    for (const line of lines) {
-      const cells = line.split(',').map(c => c.trim().replace(/^"|"$/g, ''))
-      const isEmpty = cells.every(c => !c)
-
-      if (isEmpty) {
-        inBlock = false
-        continue
+      // ── Split raw CSV text into logical rows, respecting quoted newlines ──
+      function splitCsvRows(text) {
+        const rows = []
+        let current = ''
+        let inQuotes = false
+        for (let i = 0; i < text.length; i++) {
+          const ch = text[i]
+          if (ch === '"') {
+            if (inQuotes && text[i + 1] === '"') { current += '"'; i++ } // escaped ""
+            else { inQuotes = !inQuotes; current += ch }
+          } else if (ch === '\r') {
+            // ignore \r
+          } else if (ch === '\n' && !inQuotes) {
+            rows.push(current); current = ''
+          } else {
+            current += ch
+          }
+        }
+        if (current.trim()) rows.push(current)
+        return rows.filter(r => r.trim())
       }
 
-      if (!inBlock && cells[0]) {
-        titles.push(cells[0])
-        inBlock = true
+      // ── Parse a single CSV row into cells (handles quoted commas) ─────────
+      function parseRow(line) {
+        const cells = []
+        let current = ''
+        let inQuotes = false
+        for (let i = 0; i < line.length; i++) {
+          const ch = line[i]
+          if (ch === '"') {
+            if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
+            else { inQuotes = !inQuotes }
+          } else if (ch === ',' && !inQuotes) {
+            cells.push(current.trim()); current = ''
+          } else {
+            current += ch
+          }
+        }
+        cells.push(current.trim())
+        return cells
       }
-    }
 
-    return titles
-  }
+      // Parse "[ALLaM 7B, ALLaM 13B, ...]" → ["ALLaM 7B", "ALLaM 13B", ...]
+      function parseArrayStr(str) {
+        return str.replace(/^\[|\]$/g, '').split(',').map(s => s.trim()).filter(Boolean)
+      }
 
-  function sync() {
-    if (!parsedTitles.length) {
-      document.getElementById('log').textContent = '⚠ No titles parsed yet. Pick a CSV first.'
-      return
-    }
-    document.getElementById('log').textContent = `Syncing ${parsedTitles.length} chart(s)…`
-    parent.postMessage({ pluginMessage: { type: 'sync-csv', titles: parsedTitles } }, '*')
-  }
+      // ── Format A: scientist column-based (X Axis / Y Axis / Category) ────
+      function parseColumnCsv(text) {
+        const rows = splitCsvRows(text)
+        if (rows.length < 2) return []
 
-  window.onmessage = (event) => {
-    const msg = event.data.pluginMessage
-    if (!msg || msg.type !== 'done') return
-    document.getElementById('log').textContent = msg.logs.join('\n')
-  }
-</script>
-</body>
+        const headers = parseRow(rows[0]).map(h => h.toLowerCase())
+        const xi = headers.findIndex(h => /^x(\s|$|_)/.test(h))
+        const yi = headers.findIndex(h => /^y(\s|$|_)/.test(h))
+        const ci = headers.findIndex(h => ['category','name','title','label','group'].some(k => h.includes(k)))
+
+        const blocks = []
+        for (let i = 1; i < rows.length; i++) {
+          const cells = parseRow(rows[i])
+          if (!cells.length) continue
+          const title  = (cells[ci >= 0 ? ci : 2] || `Chart ${i}`).trim()
+          const labels = parseArrayStr(cells[xi >= 0 ? xi : 0] || '')
+          const values = parseArrayStr(cells[yi >= 0 ? yi : 1] || '').map(Number).filter(n => !isNaN(n))
+          if (title) blocks.push({ title, subtitle: '', labels, values })
+        }
+        return blocks
+      }
+
+      // ── Format B: legacy block-based (blank-line separated blocks) ────────
+      function parseBlockCsv(text) {
+        const lines = text.split('\n')
+        const blocks = []
+        let current = null
+        for (const line of lines) {
+          const delim = line.includes('\t') ? '\t' : ','
+          const cells = line.split(delim).map(c => c.trim().replace(/^"|"$/g, ''))
+          const nonEmpty = cells.filter(Boolean)
+          if (!nonEmpty.length) {
+            if (current) { blocks.push(current); current = null }
+            continue
+          }
+          if (!current) {
+            current = { title: cells[0], subtitle: '', labels: [], values: [] }
+          } else if (!current.subtitle && nonEmpty.length === 1) {
+            current.subtitle = cells[0]
+          }
+        }
+        if (current) blocks.push(current)
+        return blocks
+      }
+
+      // ── File handling ─────────────────────────────────────────────────────
+      function handleFile(event) {
+        const file = event.target.files[0]
+        if (!file) return
+        document.getElementById('file-name').textContent = file.name
+        const reader = new FileReader()
+        reader.onload = (e) => {
+          const fmt = document.getElementById('format-select').value
+          parsedBlocks = fmt === 'column'
+            ? parseColumnCsv(e.target.result)
+            : parseBlockCsv(e.target.result)
+          document.getElementById('titles-preview').textContent =
+            parsedBlocks.length
+              ? parsedBlocks.map(b => b.subtitle ? `${b.title} / ${b.subtitle}` : b.title).join(', ')
+              : '⚠ No blocks found.'
+        }
+        reader.readAsText(file)
+      }
+
+      // ── Sync ──────────────────────────────────────────────────────────────
+      function sync() {
+        if (!parsedBlocks.length) {
+          document.getElementById('log').textContent = '⚠ No data parsed yet. Pick a CSV first.'
+          return
+        }
+        document.getElementById('log').textContent = `Syncing ${parsedBlocks.length} chart(s)…`
+        parent.postMessage({ pluginMessage: { type: 'sync-csv', blocks: parsedBlocks } }, '*')
+      }
+
+      window.onmessage = (event) => {
+        const msg = event.data.pluginMessage
+        if (!msg) return
+        if (msg.type === 'log') {
+          document.getElementById('log').textContent += '\n' + msg.message
+        }
+        if (msg.type === 'done') {
+          document.getElementById('log').textContent = msg.logs.join('\n')
+        }
+      }
+    </script>
+  </body>
 </html>

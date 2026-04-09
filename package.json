@@ -14,5 +14,9 @@
   "devDependencies": {
     "@figma/plugin-typings": "^1.124.0",
     "typescript": "^6.0.2"
+  },
+  "dependencies": {
+    "vega": "^6.2.0",
+    "vega-lite": "^6.4.2"
   }
 }

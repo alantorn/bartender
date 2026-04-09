@@ -1,0 +1,65 @@
+/**
+ * model-colors.css
+ * Brand color tokens for ASR models and LLM models.
+ * Source of truth lives in colors.mjs — regenerate with: node generate-charts.mjs
+ */
+
+/* ── Brand tokens ─────────────────────────────────────────────────────────── */
+
+:root {
+  /* Google */
+  --color-google:           #4285F4;
+  --color-google-rgb:       66, 133, 244;
+  --color-google-muted:     rgba(66, 133, 244, 0.82);
+
+  /* AWS */
+  --color-aws:              #FF9900;
+  --color-aws-rgb:          255, 153, 0;
+  --color-aws-muted:        rgba(255, 153, 0, 0.82);
+
+  /* Azure */
+  --color-azure:            #0078D4;
+  --color-azure-rgb:        0, 120, 212;
+  --color-azure-muted:      rgba(0, 120, 212, 0.82);
+
+  /* Whisper */
+  --color-whisper:          #A855F7;
+  --color-whisper-rgb:      168, 85, 247;
+  --color-whisper-muted:    rgba(168, 85, 247, 0.82);
+
+  /* LLM models */
+  --color-llm-0:            #FBBF24; /* ALLaM 7B    */
+  --color-llm-0-rgb:        251, 191, 36;
+  --color-llm-0-muted:      rgba(251, 191, 36, 0.82);
+
+  --color-llm-1:            #F97316; /* ALLaM 13B   */
+  --color-llm-1-rgb:        249, 115, 22;
+  --color-llm-1-muted:      rgba(249, 115, 22, 0.82);
+
+  --color-llm-2:            #14B8A6; /* Command R+  */
+  --color-llm-2-rgb:        20, 184, 166;
+  --color-llm-2-muted:      rgba(20, 184, 166, 0.82);
+
+  --color-llm-3:            #EF4444; /* Deepseek V3 */
+  --color-llm-3-rgb:        239, 68, 68;
+  --color-llm-3-muted:      rgba(239, 68, 68, 0.82);
+}
+
+/* ── Utility: swatch dots ─────────────────────────────────────────────────── */
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.swatch--google  { background: var(--color-google-muted);  border: 1px solid var(--color-google);  }
+.swatch--aws     { background: var(--color-aws-muted);     border: 1px solid var(--color-aws);     }
+.swatch--azure   { background: var(--color-azure-muted);   border: 1px solid var(--color-azure);   }
+.swatch--whisper { background: var(--color-whisper-muted); border: 1px solid var(--color-whisper); }
+.swatch--llm-0   { background: var(--color-llm-0-muted);   border: 1px solid var(--color-llm-0);   }
+.swatch--llm-1   { background: var(--color-llm-1-muted);   border: 1px solid var(--color-llm-1);   }
+.swatch--llm-2   { background: var(--color-llm-2-muted);   border: 1px solid var(--color-llm-2);   }
+.swatch--llm-3   { background: var(--color-llm-3-muted);   border: 1px solid var(--color-llm-3);   }

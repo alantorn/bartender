@@ -12,8 +12,12 @@ export interface ModelDef {
 }
 
 export interface Metric {
-  label:   string  // display label
-  fileKey: string  // token used in filePattern / sheetPattern
+  label:      string              // display label (= sheet name)
+  fileKey:    string              // sheet name — used directly, no pattern substitution
+  chartType?: 'bar' | 'box'      // auto-detected during inspect; default 'bar'
+  modelDefs?: ModelDef[]         // column definitions for this sheet
+  pivot?:     boolean            // bar only: swap cluster/sub-bar axes (rows ↔ columns)
+  splitBy?:   'none' | 'row' | 'column' // bar only: emit one card per row or per column
 }
 
 export interface ASRDataset {
@@ -24,9 +28,9 @@ export interface ASRDataset {
   yTitle:        string
   source:        'csv' | 'xlsx'
   filePattern?:  string
-  sheetPattern?: string
+  sheetPattern?: string   // used only in legacy group-mode configs
   xlsxFile?:     string
-  groups:        Record<string, ModelDef[]>
+  groups:        Record<string, ModelDef[]>  // empty {} in direct mode
   metrics:       Metric[]
 }
 
@@ -100,6 +104,9 @@ export interface ChartConfig {
   // Axes
   showYTitle:        boolean
   showYTickLabels:   boolean
+  showN:             boolean
+  nLabelSize:        number
+  nLabelColor:       string
   axisTickColor:     string
   axisTickSize:      number
   axisTickWeight:    string

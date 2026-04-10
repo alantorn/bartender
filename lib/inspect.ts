@@ -1,89 +1,70 @@
 /**
  * inspect.ts
  * Auto-detect dataset structure from an uploaded xlsx file.
- * Returns a Dataset ready to use — no manual config needed.
+ * One sheet = one chart. No pattern matching required.
  */
 import { read as xlsxRead, utils as xlsxUtils } from 'xlsx'
 import { AUTO_COLORS } from './generator'
-import type { ASRDataset, ModelDef } from './types'
+import type { ASRDataset, ModelDef, Metric } from './types'
+
+/** Count-like column names that should not be treated as model (data) columns. */
+const COUNT_COL_RE = /^\s*(n|count|value.?count|num.?samples?)\s*$/i
 
 /**
- * Parse a sheet name against a pattern like "{group} - {fileKey}".
- * Returns a map of token→value, or null if no match.
+ * Detect chart type from the column headers of a sheet.
+ * Box: headers include min + max + (median or q2/p50).
  */
-function parseSheetPattern(pattern: string, sheetName: string): Record<string, string> | null {
-  const tokens: string[] = []
-  const parts = pattern.split(/\{(\w+)\}/)
-  // parts alternates: literal, tokenName, literal, tokenName, ...
-  let regexStr = ''
-  for (let i = 0; i < parts.length; i++) {
-    if (i % 2 === 0) {
-      // literal — escape for regex
-      regexStr += parts[i].replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')
-    } else {
-      tokens.push(parts[i])
-      // last capture group is greedy so it can contain any remaining text
-      regexStr += i === parts.length - 2 ? '(.+)' : '(.+?)'
-    }
-  }
-  const m = sheetName.match(new RegExp('^' + regexStr + '$'))
-  if (!m) return null
-  const result: Record<string, string> = {}
-  tokens.forEach((t, i) => { result[t] = m[i + 1].trim() })
-  return result
+function detectChartType(headers: string[]): 'bar' | 'box' {
+  const lower = headers.map(h => h.toLowerCase())
+  const has = (re: RegExp) => lower.some(h => re.test(h))
+  return (has(/\bmin\b/) && has(/\bmax\b/) && has(/\b(median|q2|p50)\b/))
+    ? 'box'
+    : 'bar'
 }
 
-/** Read column headers from a sheet, skipping the first (category) column. */
-function sheetModelCols(wb: ReturnType<typeof xlsxRead>, sheetName: string): string[] {
+/** Build ModelDef[] from a sheet's column headers (skips first/label col and count col). */
+function sheetModelDefs(wb: ReturnType<typeof xlsxRead>, sheetName: string): ModelDef[] {
   const ws = wb.Sheets[sheetName]
   if (!ws) return []
-  const csv     = xlsxUtils.sheet_to_csv(ws)
-  const headers = csv.split(/\r?\n/)[0].split(',')
-  return headers.slice(1).map(s => s.trim()).filter(Boolean)
+  const headers = xlsxUtils.sheet_to_csv(ws).split(/\r?\n/)[0].split(',').map(s => s.trim())
+  // Skip first (label) column; skip a trailing count column
+  const dataCols = headers.slice(1)
+  const last = dataCols[dataCols.length - 1] ?? ''
+  const cols = COUNT_COL_RE.test(last) ? dataCols.slice(0, -1) : dataCols
+  return cols.filter(Boolean).map((col, i) => ({
+    col,
+    color: AUTO_COLORS[i % AUTO_COLORS.length],
+  }))
 }
 
 export interface InspectResult {
   dataset:   ASRDataset
-  groups:    string[]   // detected group names
-  fileKeys:  string[]   // detected metric keys
-  colCounts: Record<string, number>  // group → number of model columns
+  sheetNames: string[]
+  colCounts:  Record<string, number>  // sheetName → number of model columns
 }
 
-export function inspectXlsx(buffer: Buffer, sheetPattern: string): InspectResult {
+export function inspectXlsx(buffer: Buffer): InspectResult {
   const wb = xlsxRead(buffer, { type: 'buffer' })
 
-  // Match every sheet name against the pattern
-  const matched: { group: string; fileKey: string; sheetName: string }[] = []
+  const metrics: Metric[]                   = []
+  const colCounts: Record<string, number>   = {}
+
   for (const sheetName of wb.SheetNames) {
-    const tokens = parseSheetPattern(sheetPattern, sheetName)
-    if (tokens?.group && tokens?.fileKey) {
-      matched.push({ group: tokens.group, fileKey: tokens.fileKey, sheetName })
-    }
+    const ws = wb.Sheets[sheetName]
+    if (!ws) continue
+    const headers  = xlsxUtils.sheet_to_csv(ws).split(/\r?\n/)[0].split(',').map(s => s.trim())
+    const defs     = sheetModelDefs(wb, sheetName)
+    colCounts[sheetName] = defs.length
+    metrics.push({
+      label:     sheetName,
+      fileKey:   sheetName,
+      chartType: detectChartType(headers),
+      modelDefs: defs,
+    })
   }
 
-  if (matched.length === 0) {
-    throw new Error(
-      `No sheets matched pattern "${sheetPattern}".\n` +
-      `Available sheets: ${wb.SheetNames.join(', ')}`
-    )
-  }
-
-  // Unique ordered groups and fileKeys (preserve sheet order)
-  const groups   = [...new Set(matched.map(m => m.group))]
-  const fileKeys = [...new Set(matched.map(m => m.fileKey))]
-
-  // For each group, read column headers from its first sheet
-  const groupDefs: Record<string, ModelDef[]> = {}
-  const colCounts: Record<string, number>      = {}
-  for (const group of groups) {
-    const first = matched.find(m => m.group === group)!
-    const cols  = sheetModelCols(wb, first.sheetName)
-    colCounts[group] = cols.length
-    groupDefs[group] = cols.map((col, i) => ({
-      col,
-      // no label — generator falls back to col (the actual column name)
-      color: AUTO_COLORS[i % AUTO_COLORS.length],
-    }))
+  if (metrics.length === 0) {
+    throw new Error('No sheets found in the uploaded file.')
   }
 
   const dataset: ASRDataset = {
@@ -93,10 +74,11 @@ export function inspectXlsx(buffer: Buffer, sheetPattern: string): InspectResult
     sectionTitle: 'Dataset',
     yTitle:       'Value',
     source:       'xlsx',
-    sheetPattern,
-    groups:       groupDefs,
-    metrics:      fileKeys.map(fk => ({ label: fk, fileKey: fk })),
+    groups:       {},   // not used in direct mode
+    metrics,
   }
 
-  return { dataset, groups, fileKeys, colCounts }
+  return { dataset, sheetNames: wb.SheetNames, colCounts }
 }
+
+

@@ -32,13 +32,24 @@ interface ClusteredRow {
 
 // ── CSV parsers ───────────────────────────────────────────────────────────────
 
+const COUNT_COL_RE = /^\s*(n|count|value.?count|num.?samples?)\s*$/i
+
 export function parseASRCsv(content: string, modelDefs: ModelDef[]): ASRParsed {
-  const lines   = content.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  const lines   = content.trim().split(/\r?\n/).map(l => l.trim()).filter(l => l.replace(/,/g, '').trim() !== '')
   const headers = lines[0].split(',')
+  // Detect a trailing count column by name; fall back to the last column if it
+  // isn't a model column defined in modelDefs.
+  const lastHeader     = headers[headers.length - 1].trim()
+  const modelColNames  = new Set(modelDefs.map(m => m.col))
+  const hasCountCol    = COUNT_COL_RE.test(lastHeader) || !modelColNames.has(lastHeader)
+  const dataHeaders    = hasCountCol ? headers.slice(1, -1) : headers.slice(1)
+  const countColIndex  = hasCountCol ? headers.length - 1 : -1
+
   const rows: ASRRow[] = lines.slice(1).map(line => {
     const cols  = line.split(',')
-    const entry: ASRRow = { category: cols[0], values: {}, count: parseInt(cols[cols.length - 1]) || 0 }
-    headers.slice(1).forEach((h, i) => { entry.values[h] = parseFloat(cols[i + 1]) })
+    const count = countColIndex >= 0 ? (parseInt(cols[countColIndex]) || 0) : 0
+    const entry: ASRRow = { category: cols[0], values: {}, count }
+    dataHeaders.forEach((h, i) => { entry.values[h] = parseFloat(cols[i + 1]) })
     return entry
   })
   return { modelDefs, rows }
@@ -61,11 +72,54 @@ export function parseClusteredCsv(content: string): ClusteredRow[] {
 
 // ── XLSX helpers ─────────────────────────────────────────────────────────────
 
+/** Normalize a string for fuzzy comparison: lowercase, collapse whitespace. */
+function normalizeSheetName(s: string): string {
+  return s.toLowerCase().replace(/\s+/g, ' ').trim()
+}
+
+/**
+ * Word-overlap similarity between two normalized strings.
+ * Returns fraction of `query` words found in `candidate`.
+ */
+function wordOverlap(query: string, candidate: string): number {
+  const qWords = query.split(' ')
+  const cWords = new Set(candidate.split(' '))
+  const hits = qWords.filter(w => cWords.has(w)).length
+  return hits / qWords.length
+}
+
+/** Find the best matching sheet name, with fuzzy fallback. */
+function resolveSheetName(wb: ReturnType<typeof xlsxRead>, target: string): string | null {
+  // 1. Exact match
+  if (wb.Sheets[target]) return target
+
+  const normTarget = normalizeSheetName(target)
+
+  // 2. Case / whitespace normalized exact match
+  for (const name of wb.SheetNames) {
+    if (normalizeSheetName(name) === normTarget) return name
+  }
+
+  // 3. Best word-overlap match (require at least 50% overlap)
+  let bestScore = 0.5
+  let bestName: string | null = null
+  for (const name of wb.SheetNames) {
+    const score = wordOverlap(normTarget, normalizeSheetName(name))
+    if (score > bestScore) {
+      bestScore = score
+      bestName = name
+    }
+  }
+  return bestName
+}
+
 export function xlsxSheetToCsv(buffer: Buffer, sheetName: string): string {
   const wb = xlsxRead(buffer, { type: 'buffer' })
-  const ws = wb.Sheets[sheetName]
-  if (!ws) throw new Error(`Sheet "${sheetName}" not found. Available: ${wb.SheetNames.join(', ')}`)
-  return xlsxUtils.sheet_to_csv(ws)
+  const resolved = resolveSheetName(wb, sheetName)
+  if (!resolved) {
+    throw new Error(`Sheet "${sheetName}" not found. Available: ${wb.SheetNames.join(', ')}`)
+  }
+  return xlsxUtils.sheet_to_csv(wb.Sheets[resolved])
 }
 
 export function xlsxSheetNames(buffer: Buffer): string[] {
@@ -108,21 +162,69 @@ export const AUTO_COLORS: SeriesColor[] = [
   { bg: 'rgba(210,210,210,0.82)', border: '#505050' },
 ]
 
-export function buildASRSpec(C: ChartConfig, modelDefs: ModelDef[], row: ASRRow, yTitle: string) {
-  const values = modelDefs.map(({ col, label, color }, i) => {
-    const c = color ?? AUTO_COLORS[i % AUTO_COLORS.length]
-    return {
-      model:      label ?? col,
-      barColor:   c.bg,
-      labelColor: c.border,
-      wer:        +(row.values[col] ?? 0).toFixed(C.dataLabelDecimals),
-    }
-  })
+export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, pivot = false, hideXLabels = false) {
+  const { modelDefs, rows } = parsed
 
-  const xAxisHidden = {
-    labels: false, ticks: false, title: null,
-    domain: true, domainColor: C.axisTickColor, grid: false,
+  // When there is only one data row (and not pivot mode), skip x-clustering: put
+  // model directly on x so we don't get a phantom "category" cluster group.
+  const flatMode = !pivot && rows.length === 1
+
+  const values: object[] = []
+  for (let ri = 0; ri < rows.length; ri++) {
+    const row = rows[ri]
+    for (let mi = 0; mi < modelDefs.length; mi++) {
+      const { col, label, color } = modelDefs[mi]
+      const clusterColor = pivot
+        ? AUTO_COLORS[ri % AUTO_COLORS.length]
+        : (color ?? AUTO_COLORS[mi % AUTO_COLORS.length])
+      values.push({
+        category:   pivot ? (label ?? col)   : row.category,
+        model:      pivot ? row.category     : (label ?? col),
+        barColor:   clusterColor.bg,
+        labelColor: clusterColor.border,
+        wer:        row.values[col] ?? 0,
+      })
+    }
   }
+
+  // Auto-compute label decimal places: enough so the smallest non-zero value
+  // doesn't round to zero. e.g. 0.00052 needs 4 decimals.
+  const nonZero = (values as { wer: number }[]).map(v => Math.abs(v.wer)).filter(v => v > 0)
+  const autoDecimals = nonZero.length > 0
+    ? Math.max(C.dataLabelDecimals, Math.min(6, Math.ceil(-Math.log10(Math.min(...nonZero))) + 1))
+    : C.dataLabelDecimals
+
+  const xAxisStyle = {
+    labels:        !hideXLabels,
+    labelColor:    C.axisTickColor,
+    labelFontSize: C.axisTickSize,
+    labelFont:     C.fontSans,
+    ticks:         false,
+    domain:        true,
+    domainColor:   C.axisTickColor,
+    title:         null,
+    grid:          false,
+  }
+
+  // flatMode: x = model directly (no xOffset grouping)
+  const xEncFlat = {
+    field: 'model',
+    type:  'nominal' as const,
+    scale: { paddingInner: C.barPaddingInner, paddingOuter: 0.5 },
+    axis:  { ...xAxisStyle, labels: false },  // labels suppressed; text layer handles it
+  }
+
+  // clustered mode: x = category, xOffset = model
+  const xEncClustered = {
+    field: 'category',
+    type:  'nominal' as const,
+    axis:  xAxisStyle,
+  }
+
+  const xEnc     = flatMode ? xEncFlat    : xEncClustered
+  const xOffsetE = flatMode ? undefined   : { field: 'model', type: 'nominal' as const, scale: { paddingInner: C.barPaddingInner } }
+  const xTextEnc = flatMode ? xEncFlat    : xEncClustered
+  const xTextOff = flatMode ? undefined   : { field: 'model', type: 'nominal' as const }
 
   return {
     $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
@@ -136,26 +238,166 @@ export function buildASRSpec(C: ChartConfig, modelDefs: ModelDef[], row: ASRRow,
       {
         mark: { type: 'bar', width: C.barWidth, cornerRadius: C.barBorderRadius, strokeWidth: C.barBorderWidth },
         encoding: {
-          x: { field: 'model', type: 'nominal', scale: { paddingInner: C.barPaddingInner, paddingOuter: 0.5 }, axis: xAxisHidden },
-          y: { field: 'wer', type: 'quantitative', scale: { zero: true }, axis: yAxis(C, yTitle) },
-          color: { field: 'barColor', type: 'nominal', scale: null, legend: null },
+          x:       xEnc,
+          ...(xOffsetE ? { xOffset: xOffsetE } : {}),
+          y:       { field: 'wer', type: 'quantitative', scale: { zero: true }, axis: yAxis(C, yTitle) },
+          color:   { field: 'barColor', type: 'nominal', scale: null, legend: null },
         },
       },
       {
         mark: { type: 'text', clip: false, dy: -(C.dataLabelSize / 2 + 4), fontSize: C.dataLabelSize, fontWeight: C.dataLabelWeight, font: C.fontMono, fill: C.dataLabelColor },
         encoding: {
-          x:    { field: 'model', type: 'nominal' },
-          y:    { field: 'wer',   type: 'quantitative' },
-          text: { field: 'wer',   format: `.${C.dataLabelDecimals}f` },
+          x:       xTextEnc,
+          ...(xTextOff ? { xOffset: xTextOff } : {}),
+          y:       { field: 'wer',   type: 'quantitative' },
+          text:    { field: 'wer',   format: `.${autoDecimals}f` },
         },
       },
       {
         mark: { type: 'text', clip: false, angle: 90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
         encoding: {
-          x:     { field: 'model', type: 'nominal' },
+          x:       xTextEnc,
+          ...(xTextOff ? { xOffset: xTextOff } : {}),
+          y:       { value: C.chartHeight },
+          text:    { field: 'model' },
+          color:   { field: 'labelColor', type: 'nominal', scale: null, legend: null },
+        },
+      },
+    ],
+  }
+}
+
+// ── Box plot support ──────────────────────────────────────────────────────────
+
+interface BoxRow {
+  label:  string
+  min:    number
+  q1:     number
+  median: number
+  q3:     number
+  max:    number
+  color:  SeriesColor
+}
+
+/** Compute box statistics from an array of numbers. */
+function boxStats(values: number[]): { min: number; q1: number; median: number; q3: number; max: number } {
+  const sorted = [...values].sort((a, b) => a - b)
+  const n = sorted.length
+  const quantile = (p: number) => {
+    const pos = p * (n - 1)
+    const lo  = Math.floor(pos)
+    const hi  = Math.ceil(pos)
+    return sorted[lo] + (sorted[hi] - sorted[lo]) * (pos - lo)
+  }
+  return {
+    min:    sorted[0],
+    q1:     quantile(0.25),
+    median: quantile(0.5),
+    q3:     quantile(0.75),
+    max:    sorted[n - 1],
+  }
+}
+
+/**
+ * Parse a standard bar-format CSV (label col + N model cols) into BoxRows.
+ * One box per model column; stats are computed from that column's values across all data rows.
+ */
+export function parseBoxCsv(csv: string): BoxRow[] {
+  const lines   = csv.trim().split(/\r?\n/).map(l => l.trim()).filter(l => l.replace(/,/g, '').trim() !== '')
+  const headers = lines[0].split(',').map(s => s.trim())
+  const dataCols = headers.slice(1)
+  if (dataCols.length === 0) throw new Error(`Box plot: no data columns found. Headers: ${headers.join(', ')}`)
+
+  const dataRows = lines.slice(1)
+
+  // Gather each model column's values across all rows
+  return dataCols.map((colName, ci) => {
+    const values = dataRows.map(line => {
+      const cells = line.split(',').map(s => s.trim())
+      return parseFloat(cells[ci + 1]) || 0
+    })
+    return {
+      label: colName,
+      color: AUTO_COLORS[ci % AUTO_COLORS.length],
+      ...boxStats(values),
+    }
+  })
+}
+
+export function buildBoxSpec(C: ChartConfig, rows: BoxRow[], yTitle: string) {
+  const values = rows.map(r => ({
+    label:       r.label,
+    min:         +r.min.toFixed(C.dataLabelDecimals),
+    q1:          +r.q1.toFixed(C.dataLabelDecimals),
+    median:      +r.median.toFixed(C.dataLabelDecimals),
+    q3:          +r.q3.toFixed(C.dataLabelDecimals),
+    max:         +r.max.toFixed(C.dataLabelDecimals),
+    barColor:    r.color.bg,
+    borderColor: r.color.border,
+  }))
+
+  const xEnc = {
+    field: 'label',
+    type:  'nominal' as const,
+    scale: { paddingInner: C.barPaddingInner, paddingOuter: 0.5 },
+    axis:  { labels: false, ticks: false, title: null, domain: true, domainColor: C.axisTickColor, grid: false },
+  }
+
+  return {
+    $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
+    width:      C.chartWidth,
+    height:     C.chartHeight,
+    padding:    { top: C.paddingTop, right: 16, bottom: C.paddingBottom, left: 8 },
+    background: 'transparent',
+    config:     { view: { stroke: null } },
+    data:       { values },
+    layer: [
+      // Whisker: min → max
+      {
+        mark: { type: 'rule', strokeWidth: 1.5 },
+        encoding: {
+          x:      xEnc,
+          y:      { field: 'min', type: 'quantitative', scale: { zero: false }, axis: yAxis(C, yTitle) },
+          y2:     { field: 'max' },
+          stroke: { field: 'borderColor', type: 'nominal', scale: null, legend: null },
+        },
+      },
+      // Box body: q1 → q3
+      {
+        mark: { type: 'bar', width: C.barWidth, cornerRadius: C.barBorderRadius, strokeWidth: C.barBorderWidth },
+        encoding: {
+          x:     xEnc,
+          y:     { field: 'q1', type: 'quantitative', scale: { zero: false } },
+          y2:    { field: 'q3' },
+          color: { field: 'barColor', type: 'nominal', scale: null, legend: null },
+        },
+      },
+      // Median tick
+      {
+        mark: { type: 'tick', thickness: 2, bandSize: C.barWidth },
+        encoding: {
+          x:     xEnc,
+          y:     { field: 'median', type: 'quantitative', scale: { zero: false } },
+          color: { field: 'borderColor', type: 'nominal', scale: null, legend: null },
+        },
+      },
+      // Median value label (above box)
+      {
+        mark: { type: 'text', clip: false, dy: -(C.dataLabelSize / 2 + 4), fontSize: C.dataLabelSize, fontWeight: C.dataLabelWeight, font: C.fontMono, fill: C.dataLabelColor },
+        encoding: {
+          x:    { field: 'label',  type: 'nominal' },
+          y:    { field: 'max',    type: 'quantitative' },
+          text: { field: 'median', format: `.${C.dataLabelDecimals}f` },
+        },
+      },
+      // Series label below
+      {
+        mark: { type: 'text', clip: false, angle: 90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
+        encoding: {
+          x:     xEnc,
           y:     { value: C.chartHeight },
-          text:  { field: 'model' },
-          color: { field: 'labelColor', type: 'nominal', scale: null, legend: null },
+          text:  { field: 'label' },
+          color: { field: 'borderColor', type: 'nominal', scale: null, legend: null },
         },
       },
     ],
@@ -232,9 +474,9 @@ export async function specToSvg(spec: object): Promise<string> {
 export function wrapAsSvg(
   C: ChartConfig,
   chartSvg: string,
-  opts: { tag: string; category: string; dialect: string; headerHeight?: number; fixedWidth?: number | null; fixedHeight?: number | null },
+  opts: { tag: string; category: string; dialect: string; count?: number; headerHeight?: number; fixedWidth?: number | null; fixedHeight?: number | null },
 ): string {
-  const { tag, category, dialect, headerHeight = 72, fixedWidth = null, fixedHeight = null } = opts
+  const { tag, category, dialect, count, headerHeight = 72, fixedWidth = null, fixedHeight = null } = opts
 
   const wMatch   = chartSvg.match(/\bwidth="([\d.]+)"/)
   const hMatch   = chartSvg.match(/\bheight="([\d.]+)"/)
@@ -255,12 +497,17 @@ export function wrapAsSvg(
   const tagY     = catY
   const dialectY = 58
 
+  const nLabel = C.showN && count != null && count > 0
+    ? `<text x="${w - 10}" y="${totalH - 10}" text-anchor="end" font-family="${C.fontMono}" font-size="${C.nLabelSize}" fill="${C.nLabelColor}">n=${count}</text>`
+    : ''
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${totalH}">
   <rect width="${w}" height="${totalH}" fill="${C.cardBg}" />
   <text x="${w - 14}" y="${tagY}" text-anchor="end" font-family="${C.fontSans}" font-size="${C.cardTagSize}" font-weight="${C.cardTagWeight}" fill="${C.cardTagColor}">${tag}</text>
   <text x="14" y="${catY}" font-family="${C.fontSans}" font-size="${C.cardCategorySize}" font-weight="${C.cardCategoryWeight}" fill="${C.cardCategoryColor}">${category}</text>
   ${dialect ? `<text x="14" y="${dialectY}" font-family="${C.fontSans}" font-size="${C.cardDialectSize}" font-weight="${C.cardDialectWeight}" fill="${C.cardDialectColor}">${dialect}</text>` : ''}
   ${innerResized}
+  ${nLabel}
 </svg>`
 }
 
@@ -284,53 +531,116 @@ export async function generateCards(
   files:    FileBuffers,
 ): Promise<GeneratedCard[]> {
   const cards: GeneratedCard[] = []
+  let cardIndex = 0
 
   for (const dataset of datasets) {
 
     if (dataset.type === 'asr') {
-      const groupNames = Object.keys(dataset.groups)
       const buf = files[dataset.id]
       if (!buf) throw new Error(`No file uploaded for dataset "${dataset.id}"`)
 
-      // Load all sheets/csvs
-      const data: Record<string, Record<string, ASRParsed>> = {}
-      for (const group of groupNames) {
-        data[group] = {}
-        for (const { label, fileKey } of dataset.metrics) {
-          let csv: string
+      for (const metric of dataset.metrics) {
+        const { label: metricLabel, fileKey, chartType = 'bar' } = metric
+
+        if (metric.modelDefs) {
+          // ── Direct mode: fileKey IS the sheet name ─────────────────────────
+          const csv      = xlsxSheetToCsv(buf, fileKey)
+          const pivot    = metric.pivot ?? false
+          const splitBy  = metric.splitBy ?? 'none'
+
+          if (chartType === 'box') {
+            const chartSvg   = await specToSvg(buildBoxSpec(config, parseBoxCsv(csv), dataset.yTitle))
+            const wrappedSvg = wrapAsSvg(config, chartSvg, {
+              tag: dataset.tag, category: metricLabel, dialect: '',
+              fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
+            })
+            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg })
+
+          } else if (splitBy === 'row') {
+            // one card per data row — each shows all models for that row
+            const parsed = parseASRCsv(csv, metric.modelDefs)
+            for (const row of parsed.rows) {
+              const spec       = buildASRSpec(config, { modelDefs: parsed.modelDefs, rows: [row] }, dataset.yTitle, false, true)
+              const chartSvg   = await specToSvg(spec)
+              const wrappedSvg = wrapAsSvg(config, chartSvg, {
+                tag: dataset.tag, category: metricLabel, dialect: row.category,
+                count: row.count, fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
+              })
+              cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(row.category)}_${cardIndex++}`, svgData: wrappedSvg })
+            }
+
+          } else if (splitBy === 'column') {
+            // one card per model column — each shows all rows for that model
+            const parsed = parseASRCsv(csv, metric.modelDefs)
+            for (const def of parsed.modelDefs) {
+              const colLabel   = def.label ?? def.col
+              const spec       = buildASRSpec(config, { modelDefs: [def], rows: parsed.rows }, dataset.yTitle)
+              const chartSvg   = await specToSvg(spec)
+              const wrappedSvg = wrapAsSvg(config, chartSvg, {
+                tag: dataset.tag, category: metricLabel, dialect: colLabel,
+                fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
+              })
+              cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(colLabel)}_${cardIndex++}`, svgData: wrappedSvg })
+            }
+
+          } else {
+            // one card, optionally pivoted
+            const parsed     = parseASRCsv(csv, metric.modelDefs)
+            const chartSvg   = await specToSvg(buildASRSpec(config, parsed, dataset.yTitle, pivot))
+            const wrappedSvg = wrapAsSvg(config, chartSvg, {
+              tag: dataset.tag, category: metricLabel, dialect: '',
+              fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
+            })
+            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg })
+          }
+          continue
+        }
+
+        // ── Group mode (legacy / manual JSON): one card per group ────────────
+        const groupNames = Object.keys(dataset.groups)
+
+        const getSheetCsv = (group: string) => {
           if (dataset.source === 'xlsx') {
             const sheetName = (dataset.sheetPattern ?? '{group} - {fileKey}')
               .replace('{group}', group)
               .replace('{fileKey}', fileKey)
-            csv = xlsxSheetToCsv(buf, sheetName)
-          } else {
-            csv = buf.toString('utf-8')
+            return xlsxSheetToCsv(buf, sheetName)
           }
-          data[group][label] = parseASRCsv(csv, dataset.groups[group])
+          return buf.toString('utf-8')
         }
-      }
 
-      for (const { label: metricLabel } of dataset.metrics) {
-        const allCategories = [...new Map(
-          groupNames.flatMap(g => data[g][metricLabel].rows.map(r => [r.category, true] as [string, boolean]))
-        ).keys()]
-
-        for (const category of allCategories) {
+        if (chartType === 'box') {
+          // One card per group — all rows in the sheet become box series
           for (const group of groupNames) {
-            const parsed  = data[group][metricLabel]
-            const rowData = parsed.rows.find(r => r.category === category)
-            if (!rowData) continue
+            const rows = parseBoxCsv(getSheetCsv(group))
+            const chartSvg   = await specToSvg(buildBoxSpec(config, rows, dataset.yTitle))
+            const wrappedSvg = wrapAsSvg(config, chartSvg, {
+              tag:        dataset.tag,
+              category:   metricLabel,
+              dialect:    group,
+              fixedWidth: config.svgWidth,
+              fixedHeight: config.svgHeight,
+            })
+            cards.push({
+              id:      `${dataset.id}_${slug(metricLabel)}_${slug(group)}_${cardIndex++}`,
+              svgData: wrappedSvg,
+            })
+          }
 
-            const chartSvg  = await specToSvg(buildASRSpec(config, parsed.modelDefs, rowData, dataset.yTitle))
+        } else {
+          // Bar: one card per group — all category rows become grouped bars
+          for (const group of groupNames) {
+            const parsed     = parseASRCsv(getSheetCsv(group), dataset.groups[group])
+            const chartSvg   = await specToSvg(buildASRSpec(config, parsed, dataset.yTitle))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
               tag:         dataset.tag,
-              category:    `${metricLabel}: ${category}`,
+              category:    metricLabel,
               dialect:     group,
               fixedWidth:  config.svgWidth,
               fixedHeight: config.svgHeight,
             })
             cards.push({
-              id:      `${dataset.id}_${slug(metricLabel)}_${slug(category)}_${slug(group)}`,
+              id:      `${dataset.id}_${slug(metricLabel)}_${slug(group)}_${cardIndex++}`,
               svgData: wrappedSvg,
             })
           }
@@ -358,7 +668,7 @@ export async function generateCards(
         fixedWidth:  config.svgClusteredWidth,
         fixedHeight: config.svgClusteredHeight,
       })
-      cards.push({ id: dataset.id, svgData: wrappedSvg })
+      cards.push({ id: `${dataset.id}_${cardIndex++}`, svgData: wrappedSvg })
     }
   }
 

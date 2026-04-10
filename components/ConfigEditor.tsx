@@ -20,12 +20,12 @@ const SECTIONS: Section[] = [
   {
     title: 'Chart size',
     fields: [
-      { key: 'chartWidth',           label: 'ASR chart width',        type: 'number', min: 100, step: 10 },
-      { key: 'chartHeight',          label: 'ASR chart height',       type: 'number', min: 100, step: 10 },
+      { key: 'chartWidth',           label: 'Chart width',        type: 'number', min: 100, step: 10 },
+      { key: 'chartHeight',          label: 'Chart height',       type: 'number', min: 100, step: 10 },
       { key: 'clusteredChartWidth',  label: 'Clustered chart width',  type: 'number', min: 100, step: 10 },
       { key: 'clusteredChartHeight', label: 'Clustered chart height', type: 'number', min: 100, step: 10 },
-      { key: 'svgWidth',             label: 'SVG card width (null=auto)',  type: 'number', min: 0, step: 10 },
-      { key: 'svgHeight',            label: 'SVG card height (null=auto)', type: 'number', min: 0, step: 10 },
+      { key: 'svgWidth',             label: 'SVG card width',  type: 'number', min: 0, step: 10 },
+      { key: 'svgHeight',            label: 'SVG card height', type: 'number', min: 0, step: 10 },
     ],
   },
   {
@@ -62,6 +62,9 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'showYTitle',      label: 'Show Y title',      type: 'toggle' },
       { key: 'showYTickLabels', label: 'Show tick labels',  type: 'toggle' },
+      { key: 'showN',           label: 'Show n= count',     type: 'toggle' },
+      { key: 'nLabelSize',      label: 'n= font size',      type: 'number', min: 8, step: 1 },
+      { key: 'nLabelColor',     label: 'n= color',          type: 'color' },
       { key: 'axisTickSize',    label: 'Tick font size',    type: 'number', min: 8, step: 1 },
       { key: 'axisTickWeight',  label: 'Tick font weight',  type: 'text' },
       { key: 'axisTickColor',   label: 'Tick color',        type: 'color' },

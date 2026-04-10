@@ -253,20 +253,28 @@ async function specToSvg(spec) {
 }
 
 // ── Wrap chart SVG + card header into a standalone SVG file ─────────────────
-function wrapAsSvg(chartSvg, { tag, category, dialect, bgColor, headerHeight = 72 }) {
-  // Extract width/height from the inner SVG
-  const wMatch = chartSvg.match(/width="([^"]+)"/)
-  const hMatch = chartSvg.match(/height="([^"]+)"/)
-  const w = wMatch ? parseFloat(wMatch[1]) : 500
-  const h = hMatch ? parseFloat(hMatch[1]) : 400
+function wrapAsSvg(chartSvg, { tag, category, dialect, bgColor, headerHeight = 72, fixedWidth = null, fixedHeight = null }) {
+  // Extract Vega's natural rendered dimensions
+  const wMatch = chartSvg.match(/\bwidth="([\d.]+)"/)
+  const hMatch = chartSvg.match(/\bheight="([\d.]+)"/)
+  const naturalW = wMatch ? parseFloat(wMatch[1]) : 500
+  const naturalH = hMatch ? parseFloat(hMatch[1]) : 400
+
+  // Use forced dimensions if provided, otherwise fall back to Vega's output
+  const w = fixedWidth  ?? naturalW
+  const h = fixedHeight ?? naturalH
   const totalH = h + headerHeight
 
-  // Shift the inner SVG down by headerHeight
-  const innerShifted = chartSvg
+  // Rebuild the inner SVG with final w/h and a viewBox for correct scaling
+  const viewBox = `viewBox="0 0 ${naturalW} ${naturalH}"`
+  const innerResized = chartSvg
+    .replace(/\bwidth="[\d.]+"/, `width="${w}"`)
+    .replace(/\bheight="[\d.]+"/, `height="${h}"`)
+    .replace(/^<svg /, (m) => (/\bviewBox=/.test(chartSvg) ? m : `<svg ${viewBox} `))
     .replace(/^<svg /, `<svg y="${headerHeight}" `)
 
-  const tagY      = 18
   const catY      = 36
+  const tagY      = catY
   const dialectY  = 58
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${totalH}">
@@ -274,7 +282,7 @@ function wrapAsSvg(chartSvg, { tag, category, dialect, bgColor, headerHeight = 7
   <text x="${w - 14}" y="${tagY}" text-anchor="end" font-family="${C.fontSans}" font-size="${C.cardTagSize}" font-weight="${C.cardTagWeight}" fill="${C.cardTagColor}">${tag}</text>
   <text x="14" y="${catY}" font-family="${C.fontSans}" font-size="${C.cardCategorySize}" font-weight="${C.cardCategoryWeight}" fill="${C.cardCategoryColor}">${category}</text>
   ${dialect ? `<text x="14" y="${dialectY}" font-family="${C.fontSans}" font-size="${C.cardDialectSize}" font-weight="${C.cardDialectWeight}" fill="${C.cardDialectColor}">${dialect}</text>` : ''}
-  ${innerShifted}
+  ${innerResized}
 </svg>`
 }
 
@@ -340,7 +348,7 @@ async function main() {
             }
             const svg = await specToSvg(buildASRSpec(parsed.modelDefs, rowData, dataset.yTitle))
 
-            const fileSvg = wrapAsSvg(svg, { tag: dataset.tag, category: `${metricLabel}: ${category}`, dialect: group, bgColor: C.cardBg })
+            const fileSvg = wrapAsSvg(svg, { tag: dataset.tag, category: `${metricLabel}: ${category}`, dialect: group, bgColor: C.cardBg, fixedWidth: C.svgWidth, fixedHeight: C.svgHeight })
             writeFileSync(join(outDir, `${dataset.id}_${slug(metricLabel)}_${slug(category)}_${slug(group)}.svg`), fileSvg, 'utf-8')
             svgFilesWritten++
 
@@ -365,7 +373,7 @@ async function main() {
 
       const llmSvg = await specToSvg(buildLLMSpec(rows, models, dataset.yTitle))
 
-      const llmFileSvg = wrapAsSvg(llmSvg, { tag: dataset.tag, category: dataset.sectionTitle, dialect: '', bgColor: C.cardBg })
+      const llmFileSvg = wrapAsSvg(llmSvg, { tag: dataset.tag, category: dataset.sectionTitle, dialect: '', bgColor: C.cardBg, fixedWidth: C.svgLlmWidth, fixedHeight: C.svgLlmHeight })
       writeFileSync(join(outDir, `${dataset.id}.svg`), llmFileSvg, 'utf-8')
       svgFilesWritten++
 

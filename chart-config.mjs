@@ -9,8 +9,8 @@ export const CHART_CONFIG = {
   // ── Card layout ─────────────────────────────────────────────────────────────
   chartWidth:        550,   // px — Vega-Lite plot area width (axes/padding add to total SVG size)
   chartHeight:       400,   // px — Vega-Lite plot area height
-  llmChartWidth:     560,   // px — LLM chart plot area width
-  llmChartHeight:    220,   // px — LLM chart plot area height
+  clusteredChartWidth:  560,   // px — clustered chart plot area width
+  clusteredChartHeight: 220,   // px — clustered chart plot area height
   cardGap:            32,   // px — gap between chart cards in a row
   sectionGap:         64,   // px — margin between metric sections
   // Force a fixed output SVG size for Figma-consistent card dimensions.
@@ -19,8 +19,8 @@ export const CHART_CONFIG = {
   // Set both to null to use Vega’s raw output (auto).
   svgWidth:         550,   // px — forced total SVG width  for ASR cards (null = auto)
   svgHeight:        460,   // px — forced total SVG height for ASR cards (null = auto)
-  svgLlmWidth:      null,   // px — forced total SVG width  for LLM card  (null = auto)
-  svgLlmHeight:     null,   // px — forced total SVG height for LLM card  (null = auto)
+  svgClusteredWidth:    null,   // px — forced total SVG width  for clustered card  (null = auto)
+  svgClusteredHeight:   null,   // px — forced total SVG height for clustered card  (null = auto)
   // ── Bar appearance ───────────────────────────────────────────────────────────
   barBorderRadius:     0,   // px — rounding on bar corners
   barBorderWidth:      0,   // px — stroke width around bars
@@ -37,7 +37,7 @@ export const CHART_CONFIG = {
   // Both loaded from Google Fonts automatically when fontUrlMono / fontUrlSans are set.
   fontUrlSans:  'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap',
   fontUrlMono:  'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@200&display=swap',
-  fontSans:     'Inter, system-ui, sans-serif',       // titles, labels, category names
+  fontSans:     'TT Hoves Pro Trial',                 // titles, labels, category names
   fontMono:     'JetBrains Mono',                     // numeric values, y-axis ticks — no CSS quotes, SVG attr doesn't need them
 
   // ── Value labels (above bars) ────────────────────────────────────────────────
@@ -90,3 +90,4 @@ export const CHART_CONFIG = {
   sectionBorderColor: '#2a2a38',
 
 }
+

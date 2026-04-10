@@ -11,12 +11,27 @@ import { join, dirname }               from 'path'
 import { fileURLToPath }               from 'url'
 import { compile }                     from 'vega-lite'
 import * as vega                       from 'vega'
-import { modelChartColor, LLM_COLORS } from './colors.mjs'
+import pkg from 'xlsx'
+const { readFile: xlsxReadFile, utils: xlsxUtils } = pkg
 import { CHART_CONFIG as C }           from './chart-config.mjs'
 import { DATASETS, PAGE }              from './data-config.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const dataDir   = join(__dirname, 'data')
+
+// ── XLSX workbook loader (cached per file path) ─────────────────────────
+const _workbooks = new Map()
+function getWorkbook(xlsxFile) {
+  const absPath = join(dataDir, xlsxFile)
+  if (!_workbooks.has(absPath)) _workbooks.set(absPath, xlsxReadFile(absPath))
+  return _workbooks.get(absPath)
+}
+function readSheetAsCsv(xlsxFile, sheetName) {
+  const wb = getWorkbook(xlsxFile)
+  const ws = wb.Sheets[sheetName]
+  if (!ws) throw new Error(`Sheet "${sheetName}" not found in ${xlsxFile}. Available: ${wb.SheetNames.join(', ')}`)
+  return xlsxUtils.sheet_to_csv(ws)
+}
 
 // ── CSV parsers ──────────────────────────────────────────────────────────────
 // modelDefs is the array from data-config.mjs groups[groupName]
@@ -75,16 +90,13 @@ const xAxisHidden = {
 
 // ── ASR single-group spec (one category × one group) ────────────────────────
 function buildASRSpec(modelDefs, rowData, yTitle) {
-  const values = modelDefs.map(({ col, label }) => ({
+  const FALLBACK = { bg: 'rgba(180,180,180,0.7)', border: '#aaa' }
+  const values = modelDefs.map(({ col, label, color }) => ({
     model:      label,
-    barColor:   modelChartColor(label).bg,
-    labelColor: modelChartColor(label).border,
+    barColor:   (color ?? FALLBACK).bg,
+    labelColor: (color ?? FALLBACK).border,
     wer:        +(rowData.values[col] ?? 0).toFixed(C.dataLabelDecimals),
   }))
-
-  const domain      = modelDefs.map(d => d.label)
-  const barColors   = domain.map(l => modelChartColor(l).bg)
-  const labelColors = domain.map(l => modelChartColor(l).border)
 
   return {
     $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
@@ -152,35 +164,37 @@ function buildASRSpec(modelDefs, rowData, yTitle) {
   }
 }
 
-// ── LLM grouped-bar spec ─────────────────────────────────────────────────────
-function buildLLMSpec(rows, models, yTitle) {
+// ── Clustered-bar spec ─────────────────────────────────────────────────────────
+function buildClusteredSpec(rows, models, yTitle, seriesColors = {}) {
+  const FALLBACK = { bg: 'rgba(200,200,200,0.7)', border: '#aaa' }
   const values = []
   rows.forEach(row => {
     row.models.forEach((model, mi) => {
+      const color = seriesColors[model] ?? FALLBACK
       values.push({
         category:   row.category,
         model,
-        barColor:   LLM_COLORS[mi] ? `rgba(${LLM_COLORS[mi].rgb},${C.barAlpha})` : 'rgba(200,200,200,0.7)',
-        labelColor: LLM_COLORS[mi]?.hex ?? '#aaa',
+        barColor:   color.bg,
+        labelColor: color.border,
         score:      +row.values[mi].toFixed(2),
       })
     })
   })
 
   const domain      = models
-  const barColors   = domain.map((_, i) => LLM_COLORS[i] ? `rgba(${LLM_COLORS[i].rgb},${C.barAlpha})` : 'rgba(200,200,200,0.7)')
-  const labelColors = domain.map((_, i) => LLM_COLORS[i]?.hex ?? '#aaa')
+  const barColors   = domain.map(m => (seriesColors[m] ?? FALLBACK).bg)
+  const labelColors = domain.map(m => (seriesColors[m] ?? FALLBACK).border)
 
   return {
     $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
-    width:   C.llmChartWidth,
-    height:  C.llmChartHeight,
+    width:   C.clusteredChartWidth,
+    height:  C.clusteredChartHeight,
     padding: { top: C.paddingTop, right: 16, bottom: C.paddingBottom, left: 8 },
     background: 'transparent',
     config: { view: { stroke: null } },
     data: { values },
     layer: [
-      // ① Grouped bars
+      // ① Clustered bars
       {
         mark: { type: 'bar', width: C.barWidth, cornerRadius: C.barBorderRadius, strokeWidth: C.barBorderWidth },
         encoding: {
@@ -236,7 +250,7 @@ function buildLLMSpec(rows, models, yTitle) {
         encoding: {
           x:       { field: 'category', type: 'nominal' },
           xOffset: { field: 'model',    type: 'nominal' },
-          y:       { value: C.llmChartHeight },
+          y:       { value: C.clusteredChartHeight },
           text:    { field: 'model' },
           color: { field: 'labelColor', type: 'nominal', scale: null, legend: null },
         },
@@ -315,15 +329,23 @@ async function main() {
     if (dataset.type === 'asr') {
       const groupNames = Object.keys(dataset.groups)
 
-      // Load all CSVs for this dataset upfront
+      // Load data for this dataset (CSV or XLSX sheet)
       const data = {}
       for (const group of groupNames) {
         data[group] = {}
         for (const { label, fileKey } of dataset.metrics) {
-          const filename = dataset.filePattern
-            .replace('{group}',   group)
-            .replace('{fileKey}', fileKey)
-          const raw = readFileSync(join(dataDir, filename), 'utf-8')
+          let raw
+          if (dataset.source === 'xlsx') {
+            const sheetName = dataset.sheetPattern
+              .replace('{group}',   group)
+              .replace('{fileKey}', fileKey)
+            raw = readSheetAsCsv(dataset.xlsxFile, sheetName)
+          } else {
+            const filename = dataset.filePattern
+              .replace('{group}',   group)
+              .replace('{fileKey}', fileKey)
+            raw = readFileSync(join(dataDir, filename), 'utf-8')
+          }
           data[group][label] = parseASRCsv(raw, dataset.groups[group])
         }
       }
@@ -365,23 +387,25 @@ async function main() {
         canvasHtml += `\n  </div>`
       }
 
-    // ── LLM: one grouped-bar chart ───────────────────────────────────────────
-    } else if (dataset.type === 'llm') {
-      const raw    = readFileSync(join(dataDir, dataset.file), 'utf-8')
+    // ── Clustered: one clustered-bar chart ─────────────────────────────────────
+    } else if (dataset.type === 'clustered') {
+      const raw = dataset.source === 'xlsx'
+        ? readSheetAsCsv(dataset.xlsxFile, dataset.sheet)
+        : readFileSync(join(dataDir, dataset.file), 'utf-8')
       const rows   = parseAxisCsv(raw)
       const models = rows[0]?.models ?? []
 
-      const llmSvg = await specToSvg(buildLLMSpec(rows, models, dataset.yTitle))
+      const clusteredSvg = await specToSvg(buildClusteredSpec(rows, models, dataset.yTitle, dataset.seriesColors ?? {}))
 
-      const llmFileSvg = wrapAsSvg(llmSvg, { tag: dataset.tag, category: dataset.sectionTitle, dialect: '', bgColor: C.cardBg, fixedWidth: C.svgLlmWidth, fixedHeight: C.svgLlmHeight })
-      writeFileSync(join(outDir, `${dataset.id}.svg`), llmFileSvg, 'utf-8')
+      const clusteredFileSvg = wrapAsSvg(clusteredSvg, { tag: dataset.tag, category: dataset.sectionTitle, dialect: '', bgColor: C.cardBg, fixedWidth: C.svgClusteredWidth, fixedHeight: C.svgClusteredHeight })
+      writeFileSync(join(outDir, `${dataset.id}.svg`), clusteredFileSvg, 'utf-8')
       svgFilesWritten++
 
       canvasHtml +=
         `\n  <div class="section">\n    <h2 class="section-title">${dataset.sectionTitle}</h2>` +
-        `\n    <div class="chart-grid llm-grid">\n      <div class="chart-wrap">` +
+        `\n    <div class="chart-grid clustered-grid">\n      <div class="chart-wrap">` +
         cardHeader(dataset.tag, dataset.sectionTitle, '') +
-        llmSvg +
+        clusteredSvg +
         `\n      </div>\n    </div>\n  </div>`
     }
   }
@@ -412,7 +436,7 @@ async function main() {
     .card-dialect{font-size:${C.cardDialectSize}px;font-weight:${C.cardDialectWeight};color:${C.cardDialectColor};line-height:1.3;font-family:${C.fontSans}}
     .category-row{margin-bottom:24px}
     .chart-wrap.chart-empty{background:transparent;border-color:transparent}
-    .llm-grid{grid-template-columns:minmax(0,1fr);max-width:900px}
+    .clustered-grid{grid-template-columns:minmax(0,1fr);max-width:900px}
   </style>
 </head>
 <body>
@@ -427,3 +451,4 @@ async function main() {
 }
 
 main().catch(err => { console.error(err); process.exit(1) })
+

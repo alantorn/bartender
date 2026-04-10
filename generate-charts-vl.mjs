@@ -13,42 +13,16 @@ import { compile }                     from 'vega-lite'
 import * as vega                       from 'vega'
 import { modelChartColor, LLM_COLORS } from './colors.mjs'
 import { CHART_CONFIG as C }           from './chart-config.mjs'
+import { DATASETS, PAGE }              from './data-config.mjs'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const dataDir   = join(__dirname, 'data')
 
-// ── Dialect → model column mappings ─────────────────────────────────────────
-const DIALECT_MODELS = {
-  Chami: [
-    { col: 'google1', label: 'Google'  },
-    { col: 'aws',     label: 'AWS'     },
-    { col: 'azure1',  label: 'Azure'   },
-    { col: 'whisper', label: 'Whisper' },
-  ],
-  Egyptian: [
-    { col: 'google',  label: 'Google'  },
-    { col: 'aws',     label: 'AWS'     },
-    { col: 'azure',   label: 'Azure'   },
-    { col: 'whisper', label: 'Whisper' },
-  ],
-  Hijazi: [
-    { col: 'aws',     label: 'AWS'     },
-    { col: 'azure',   label: 'Azure'   },
-    { col: 'whisper', label: 'Whisper' },
-  ],
-  Najdi: [
-    { col: 'google',  label: 'Google'  },
-    { col: 'aws',     label: 'AWS'     },
-    { col: 'azure',   label: 'Azure'   },
-    { col: 'whisper', label: 'Whisper' },
-  ],
-}
-
 // ── CSV parsers ──────────────────────────────────────────────────────────────
-function parseASRCsv(content, dialect) {
+// modelDefs is the array from data-config.mjs groups[groupName]
+function parseASRCsv(content, modelDefs) {
   const lines    = content.trim().split(/\r?\n/).map(l => l.trim()).filter(Boolean)
   const headers  = lines[0].split(',')
-  const modelDefs = DIALECT_MODELS[dialect]
   const rows = lines.slice(1).map(line => {
     const cols  = line.split(',')
     const entry = { category: cols[0], values: {}, count: parseInt(cols[cols.length - 1]) || 0 }
@@ -73,40 +47,25 @@ function parseAxisCsv(content) {
   return rows
 }
 
-// ── Load data ────────────────────────────────────────────────────────────────
-const dialects = ['Chami', 'Egyptian', 'Hijazi', 'Najdi']
-const METRICS  = [
-  { label: 'Speaker Age',         fileKey: 'Age'                 },
-  { label: 'Speaker Gender',      fileKey: 'Gender'              },
-  { label: 'Segment Environment', fileKey: 'segment environment' },
-]
-
-const asrData = {}
-for (const dialect of dialects) {
-  asrData[dialect] = {}
-  for (const { label, fileKey } of METRICS) {
-    const raw = readFileSync(join(dataDir, `Arabic ASR-full_${dialect} - ${fileKey}.csv`), 'utf-8')
-    asrData[dialect][label] = parseASRCsv(raw, dialect)
-  }
-}
-
-const axisRaw  = readFileSync(join(dataDir, 'axis', 'Arabic LLM Evaluation - Sheet11.csv'), 'utf-8')
-const axisRows = parseAxisCsv(axisRaw)
-const llmModels = axisRows[0]?.models ?? []
-
 // ── Shared axis config helpers ───────────────────────────────────────────────
 const yAxis = (title) => ({
-  labelColor:     C.axisTickColor,
-  labelFontSize:  C.axisTickSize,
-  labelFont:      C.fontMono,
-  tickColor:      C.axisTickColor,
-  domainColor:    C.axisTickColor,
-  title,
-  titleColor:     C.yTitleColor,
-  titleFontSize:  C.yTitleSize,
-  titleFont:      C.fontSans,
-  gridColor:      C.gridColorY,
-  tickCount:      5,
+  labels:              C.showYTickLabels,
+  labelColor:          C.axisTickColor,
+  labelFontSize:       C.axisTickSize,
+  labelFontWeight:     C.axisTickWeight,
+  labelFont:           C.fontMono,
+  tickColor:           C.axisTickColor,
+  domainColor:         C.axisTickColor,
+  title:               C.showYTitle ? title : null,
+  titleColor:          C.yTitleColor,
+  titleFontSize:       C.yTitleSize,
+  titleFontWeight:     C.yTitleWeight,
+  titleAlign:          C.yTitleAlign,
+  titleBaseline:       'bottom',
+  titleY:              C.yTitleY,
+  titleFont:           C.fontSans,
+  gridColor:           C.gridColorY,
+  tickCount:           5,
 })
 
 const xAxisHidden = {
@@ -114,8 +73,8 @@ const xAxisHidden = {
   domain: true, domainColor: C.axisTickColor, grid: false,
 }
 
-// ── ASR single-group spec (one category × one dialect) ───────────────────────
-function buildASRSpec(modelDefs, rowData) {
+// ── ASR single-group spec (one category × one group) ────────────────────────
+function buildASRSpec(modelDefs, rowData, yTitle) {
   const values = modelDefs.map(({ col, label }) => ({
     model:      label,
     barColor:   modelChartColor(label).bg,
@@ -148,7 +107,7 @@ function buildASRSpec(modelDefs, rowData) {
           y: {
             field: 'wer', type: 'quantitative',
             scale: { zero: true },
-            axis: yAxis('WER (%)'),
+            axis: yAxis(yTitle),
           },
           color: { field: 'barColor', type: 'nominal', scale: null, legend: null },
         },
@@ -194,9 +153,9 @@ function buildASRSpec(modelDefs, rowData) {
 }
 
 // ── LLM grouped-bar spec ─────────────────────────────────────────────────────
-function buildLLMSpec() {
+function buildLLMSpec(rows, models, yTitle) {
   const values = []
-  axisRows.forEach(row => {
+  rows.forEach(row => {
     row.models.forEach((model, mi) => {
       values.push({
         category:   row.category,
@@ -208,7 +167,7 @@ function buildLLMSpec() {
     })
   })
 
-  const domain      = llmModels
+  const domain      = models
   const barColors   = domain.map((_, i) => LLM_COLORS[i] ? `rgba(${LLM_COLORS[i].rgb},${C.barAlpha})` : 'rgba(200,200,200,0.7)')
   const labelColors = domain.map((_, i) => LLM_COLORS[i]?.hex ?? '#aaa')
 
@@ -239,7 +198,7 @@ function buildLLMSpec() {
           y: {
             field: 'score', type: 'quantitative',
             scale: { zero: true },
-            axis: yAxis('Score'),
+            axis: yAxis(yTitle),
           },
           color: { field: 'barColor', type: 'nominal', scale: null, legend: null },
         },
@@ -258,7 +217,7 @@ function buildLLMSpec() {
           x:       { field: 'category', type: 'nominal' },
           xOffset: { field: 'model',    type: 'nominal' },
           y:       { field: 'score',    type: 'quantitative' },
-          text:    { field: 'score',    format: '.2f' },
+          text:    { field: 'score',    format: `.${C.dataLabelDecimals}f` },
         },
       },
       // ③ Rotated model labels below each bar group
@@ -342,57 +301,82 @@ async function main() {
   const outDir = join(__dirname, 'output')
   mkdirSync(outDir, { recursive: true })
 
-  for (const { label: metricLabel } of METRICS) {
-    const allCategories = [...new Map(
-      dialects.flatMap(d => asrData[d][metricLabel].rows.map(r => [r.category, true]))
-    ).keys()]
+  for (const dataset of DATASETS) {
 
-    canvasHtml += `\n  <div class="section">\n    <h2 class="section-title">${metricLabel}</h2>`
+    // ── ASR: one chart per (metric × category × group) ──────────────────────
+    if (dataset.type === 'asr') {
+      const groupNames = Object.keys(dataset.groups)
 
-    for (const category of allCategories) {
-      canvasHtml += `\n    <div class="category-row">\n      <div class="chart-grid">`
-
-      for (const dialect of dialects) {
-        const parsed  = asrData[dialect][metricLabel]
-        const rowData = parsed.rows.find(r => r.category === category)
-        if (!rowData) {
-          canvasHtml += `\n        <div class="chart-wrap chart-empty"></div>`
-          continue
+      // Load all CSVs for this dataset upfront
+      const data = {}
+      for (const group of groupNames) {
+        data[group] = {}
+        for (const { label, fileKey } of dataset.metrics) {
+          const filename = dataset.filePattern
+            .replace('{group}',   group)
+            .replace('{fileKey}', fileKey)
+          const raw = readFileSync(join(dataDir, filename), 'utf-8')
+          data[group][label] = parseASRCsv(raw, dataset.groups[group])
         }
-        const svg = await specToSvg(buildASRSpec(parsed.modelDefs, rowData))
-
-        // Write individual SVG file
-        const fileSvg = wrapAsSvg(svg, { tag: 'Arabic ASR', category: `${metricLabel}: ${category}`, dialect, bgColor: C.cardBg })
-        writeFileSync(join(outDir, `asr_${slug(metricLabel)}_${slug(category)}_${slug(dialect)}.svg`), fileSvg, 'utf-8')
-        svgFilesWritten++
-
-        canvasHtml +=
-          `\n        <div class="chart-wrap">` +
-          cardHeader('Arabic ASR', `${metricLabel}: ${category}`, dialect) +
-          svg +
-          `</div>`
       }
 
-      canvasHtml += `\n      </div>\n    </div>`
+      for (const { label: metricLabel } of dataset.metrics) {
+        // Collect all categories that appear in any group for this metric
+        const allCategories = [...new Map(
+          groupNames.flatMap(g => data[g][metricLabel].rows.map(r => [r.category, true]))
+        ).keys()]
+
+        canvasHtml += `\n  <div class="section">\n    <h2 class="section-title">${metricLabel}</h2>`
+
+        for (const category of allCategories) {
+          canvasHtml += `\n    <div class="category-row">\n      <div class="chart-grid" style="grid-template-columns:repeat(${groupNames.length},1fr)">`
+
+          for (const group of groupNames) {
+            const parsed  = data[group][metricLabel]
+            const rowData = parsed.rows.find(r => r.category === category)
+            if (!rowData) {
+              canvasHtml += `\n        <div class="chart-wrap chart-empty"></div>`
+              continue
+            }
+            const svg = await specToSvg(buildASRSpec(parsed.modelDefs, rowData, dataset.yTitle))
+
+            const fileSvg = wrapAsSvg(svg, { tag: dataset.tag, category: `${metricLabel}: ${category}`, dialect: group, bgColor: C.cardBg })
+            writeFileSync(join(outDir, `${dataset.id}_${slug(metricLabel)}_${slug(category)}_${slug(group)}.svg`), fileSvg, 'utf-8')
+            svgFilesWritten++
+
+            canvasHtml +=
+              `\n        <div class="chart-wrap">` +
+              cardHeader(dataset.tag, `${metricLabel}: ${category}`, group) +
+              svg +
+              `</div>`
+          }
+
+          canvasHtml += `\n      </div>\n    </div>`
+        }
+
+        canvasHtml += `\n  </div>`
+      }
+
+    // ── LLM: one grouped-bar chart ───────────────────────────────────────────
+    } else if (dataset.type === 'llm') {
+      const raw    = readFileSync(join(dataDir, dataset.file), 'utf-8')
+      const rows   = parseAxisCsv(raw)
+      const models = rows[0]?.models ?? []
+
+      const llmSvg = await specToSvg(buildLLMSpec(rows, models, dataset.yTitle))
+
+      const llmFileSvg = wrapAsSvg(llmSvg, { tag: dataset.tag, category: dataset.sectionTitle, dialect: '', bgColor: C.cardBg })
+      writeFileSync(join(outDir, `${dataset.id}.svg`), llmFileSvg, 'utf-8')
+      svgFilesWritten++
+
+      canvasHtml +=
+        `\n  <div class="section">\n    <h2 class="section-title">${dataset.sectionTitle}</h2>` +
+        `\n    <div class="chart-grid llm-grid">\n      <div class="chart-wrap">` +
+        cardHeader(dataset.tag, dataset.sectionTitle, '') +
+        llmSvg +
+        `\n      </div>\n    </div>\n  </div>`
     }
-
-    canvasHtml += `\n  </div>`
   }
-
-  // LLM chart
-  const llmSvg = await specToSvg(buildLLMSpec())
-
-  // Write LLM SVG file
-  const llmFileSvg = wrapAsSvg(llmSvg, { tag: 'Arabic', category: 'LLM Evaluation', dialect: '', bgColor: C.cardBg })
-  writeFileSync(join(outDir, 'llm.svg'), llmFileSvg, 'utf-8')
-  svgFilesWritten++
-
-  canvasHtml +=
-    `\n  <div class="section">\n    <h2 class="section-title">Arabic LLM Evaluation</h2>` +
-    `\n    <div class="chart-grid llm-grid">\n      <div class="chart-wrap">` +
-    cardHeader('Arabic', 'LLM Evaluation', '') +
-    llmSvg +
-    `\n      </div>\n    </div>\n  </div>`
 
   const genDate = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 
@@ -400,7 +384,7 @@ async function main() {
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>ASR / LLM Chart Reference</title>
+  <title>${PAGE.title}</title>
   ${C.fontUrlSans ? `<link rel="stylesheet" href="${C.fontUrlSans}" />` : ''}
   ${C.fontUrlMono ? `<link rel="stylesheet" href="${C.fontUrlMono}" />` : ''}
   <style>
@@ -410,7 +394,7 @@ async function main() {
     .page-sub{color:#6b6b80;font-size:11px;margin-bottom:40px}
     .section{margin-bottom:${C.sectionGap}px}
     .section-title{font-size:15px;font-weight:600;color:${C.sectionTitleColor};border-bottom:1px solid ${C.sectionBorderColor};padding-bottom:8px;margin-bottom:16px}
-    .chart-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:${C.cardGap}px}
+    .chart-grid{display:grid;gap:${C.cardGap}px}
     .chart-wrap{background:${C.cardBg};border:1px solid ${C.cardBorder};border-radius:${C.cardRadius}px;padding:14px 14px 8px}
     .chart-wrap svg{width:100%;height:auto;display:block}
     .card-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
@@ -424,14 +408,14 @@ async function main() {
   </style>
 </head>
 <body>
-  <h1>Chart Reference \u2014 Arabic ASR &amp; LLM Evaluation</h1>
-  <p class="page-sub">Generated ${genDate} \u00b7 Visual reference only \u00b7 Lower WER\u00a0=\u00a0better</p>
+  <h1>${PAGE.title}</h1>
+  <p class="page-sub">Generated ${genDate} \u00b7 ${PAGE.subtitle}</p>
   ${canvasHtml}
 </body>
 </html>`
 
   writeFileSync(join(__dirname, 'charts.html'), html, 'utf-8')
-  console.log(`Written: charts.html + ${svgFilesWritten} SVG files → output/`)
+  console.log(`Written: charts.html + ${svgFilesWritten} SVG files \u2192 output/`)
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

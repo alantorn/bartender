@@ -8,7 +8,7 @@ export const CHART_CONFIG = {
 
   // ── Card layout ─────────────────────────────────────────────────────────────
   chartWidth:        550,   // px — Vega-Lite plot area width (axes/padding add to total SVG size)
-  chartHeight:       595,   // px — Vega-Lite plot area height
+  chartHeight:       400,   // px — Vega-Lite plot area height
   llmChartWidth:     560,   // px — LLM chart plot area width
   llmChartHeight:    220,   // px — LLM chart plot area height
   cardGap:            32,   // px — gap between chart cards in a row
@@ -22,8 +22,8 @@ export const CHART_CONFIG = {
   barPaddingInner:   0.3,   // 0–1 — fraction of band used as gap between bars (Vega-Lite scale)
 
   // ── Spacing inside chart ─────────────────────────────────────────────────────
-  paddingTop:         18,   // px — space above bars (for value labels)
-  paddingBottom:      48,   // px — reserved for vertical model labels below x-axis
+  paddingTop:         32,   // px — space above bars (for value labels)
+  paddingBottom:      32,   // px — reserved for vertical model labels below x-axis
 
   // ── Typography ───────────────────────────────────────────────────────────────
   // Two fonts: one for numbers (mono), one for words (sans)
@@ -40,8 +40,8 @@ export const CHART_CONFIG = {
   dataLabelDecimals:   1,   // decimal places
 
   // ── Vertical model name labels (below x-axis) ────────────────────────────────
-  barLabelSize:        22,   // font size px
-  barLabelWeight:  '600',   // font weight  (uses fontSans)
+  barLabelSize:        16,   // font size px
+  barLabelWeight:  '400',   // font weight  (uses fontSans)
   barLabelOffsetY:     -8,   // px — vertical offset of label anchor point (negative = up into chart)
   barLabelPaddingTop:  16,   // px — gap between x-axis domain line and the first character
   barLabelFallback: '#707088',
@@ -60,11 +60,16 @@ export const CHART_CONFIG = {
   cardDialectColor:  '#83839a',
 
   // ── Axes ─────────────────────────────────────────────────────────────────────
+  showYTitle:      true,   // show/hide the Y axis title (e.g. "WER (%)", "Score")
+  showYTickLabels: true,   // show/hide the numeric Y axis tick labels
   axisTickColor: '#a0a0b8',
-  axisTickSize:           9,
-  axisTickWeight:   '400',                            // y-axis numbers use fontMono
+  axisTickSize:           16,
+  axisTickWeight:   '400',   // font weight of Y axis tick labels  (uses fontMono)
   yTitleColor:   '#505065',
-  yTitleSize:             9,
+  yTitleSize:             16,
+  yTitleWeight:     '400',   // font weight of Y axis title label  (uses fontSans)
+  yTitleAlign:    'left',    // text justification: 'left' | 'center' | 'right'
+  yTitleY:             70,    // px — 0 = top of axis domain line, positive = move down
   gridColorX:    'rgba(255,255,255,0.04)',
   gridColorY:    'rgba(255,255,255,0.07)',
 

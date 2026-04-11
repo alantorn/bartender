@@ -8,6 +8,16 @@ interface Props {
   error?:  string | null
 }
 
+function downloadCard(card: GeneratedCard) {
+  const blob = new Blob([card.svgData], { type: 'image/svg+xml' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `${card.id}.svg`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}
+
 export default function Preview({ cards, loading, error }: Props) {
   if (error) {
     return (
@@ -38,12 +48,17 @@ export default function Preview({ cards, loading, error }: Props) {
       {cards.map(card => (
         <div key={card.id} className="border border-neutral-200 rounded-lg overflow-hidden shadow-sm">
           <div
-            // Render the SVG inline so fonts/colors are live
-            // biome-ignore lint/security/noDangerouslySetInnerHtml: SVG is generated server-side from trusted spec
             dangerouslySetInnerHTML={{ __html: card.svgData }}
           />
-          <div className="px-3 py-1.5 bg-neutral-50 border-t border-neutral-200 text-xs text-neutral-400 font-mono truncate">
-            {card.id}.svg
+          <div className="px-3 py-1.5 bg-neutral-50 border-t border-neutral-200 flex items-center gap-2">
+            <span className="flex-1 text-xs text-neutral-400 font-mono truncate">{card.id}.svg</span>
+            <button
+              onClick={() => downloadCard(card)}
+              title="Download SVG"
+              className="text-xs text-neutral-400 hover:text-neutral-700 transition-colors px-1.5 py-0.5 rounded hover:bg-neutral-200"
+            >
+              ↓
+            </button>
           </div>
         </div>
       ))}

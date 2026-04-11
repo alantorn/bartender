@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG: ChartConfig = {
   barAlpha:        1,
   barWidth:        12,
   barPaddingInner: 0.3,
+  barSortOrder:    'none' as const,
 
   // Spacing
   paddingTop:    32,
@@ -62,6 +63,7 @@ export const DEFAULT_CONFIG: ChartConfig = {
   // Axes
   showYTitle:      true,
   showYTickLabels: true,
+  showXDomain:     false,
   showN:           false,
   nLabelSize:      11,
   nLabelColor:     '#aeaec6',

@@ -11,13 +11,20 @@ import type { ASRDataset, ModelDef, Metric } from './types'
 const COUNT_COL_RE = /^\s*(n|count|value.?count|num.?samples?)\s*$/i
 
 /**
- * Detect chart type from the column headers of a sheet.
- * Box: headers include min + max + (median or q2/p50).
+ * Detect chart type from a sheet.
+ * Box: first column of data rows contains stat labels q1 + q3 + median
+ * (i.e. the new explicit-stats row format).
  */
-function detectChartType(headers: string[]): 'bar' | 'box' {
-  const lower = headers.map(h => h.toLowerCase())
-  const has = (re: RegExp) => lower.some(h => re.test(h))
-  return (has(/\bmin\b/) && has(/\bmax\b/) && has(/\b(median|q2|p50)\b/))
+function detectChartType(wb: ReturnType<typeof xlsxRead>, sheetName: string): 'bar' | 'box' {
+  const ws = wb.Sheets[sheetName]
+  if (!ws) return 'bar'
+  const lines = xlsxUtils.sheet_to_csv(ws)
+    .split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l.replace(/,/g, '').trim() !== '')
+  const firstColValues = lines.slice(1).map(l => l.split(',')[0].trim().toLowerCase())
+  const has = (re: RegExp) => firstColValues.some(v => re.test(v))
+  return (has(/^q1$/) && has(/^q3$/) && has(/^(median|q2|p50)$/))
     ? 'box'
     : 'bar'
 }
@@ -52,13 +59,12 @@ export function inspectXlsx(buffer: Buffer): InspectResult {
   for (const sheetName of wb.SheetNames) {
     const ws = wb.Sheets[sheetName]
     if (!ws) continue
-    const headers  = xlsxUtils.sheet_to_csv(ws).split(/\r?\n/)[0].split(',').map(s => s.trim())
     const defs     = sheetModelDefs(wb, sheetName)
     colCounts[sheetName] = defs.length
     metrics.push({
       label:     sheetName,
       fileKey:   sheetName,
-      chartType: detectChartType(headers),
+      chartType: detectChartType(wb, sheetName),
       modelDefs: defs,
     })
   }

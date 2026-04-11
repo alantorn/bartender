@@ -14,7 +14,7 @@ export interface ModelDef {
 export interface Metric {
   label:      string              // display label (= sheet name)
   fileKey:    string              // sheet name — used directly, no pattern substitution
-  chartType?: 'bar' | 'box'      // auto-detected during inspect; default 'bar'
+  chartType?: 'bar' | 'box' | 'scatter' // auto-detected during inspect; default 'bar'
   modelDefs?: ModelDef[]         // column definitions for this sheet
   pivot?:     boolean            // bar only: swap cluster/sub-bar axes (rows ↔ columns)
   splitBy?:   'none' | 'row' | 'column' // bar only: emit one card per row or per column
@@ -72,6 +72,7 @@ export interface ChartConfig {
   barAlpha:          number
   barWidth:          number
   barPaddingInner:   number
+  barSortOrder:      'none' | 'ascending' | 'descending'
   // Spacing
   paddingTop:        number
   paddingBottom:     number
@@ -104,6 +105,7 @@ export interface ChartConfig {
   // Axes
   showYTitle:        boolean
   showYTickLabels:   boolean
+  showXDomain:       boolean
   showN:             boolean
   nLabelSize:        number
   nLabelColor:       string

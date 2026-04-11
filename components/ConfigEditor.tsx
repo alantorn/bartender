@@ -3,15 +3,16 @@
 import type { ChartConfig } from '@/lib/types'
 
 // ─── field descriptor ────────────────────────────────────────────────────────
-type FieldType = 'number' | 'text' | 'toggle' | 'color'
+type FieldType = 'number' | 'text' | 'toggle' | 'color' | 'select'
 
 interface Field {
-  key:     keyof ChartConfig
-  label:   string
-  type:    FieldType
-  step?:   number
-  min?:    number
-  max?:    number
+  key:      keyof ChartConfig
+  label:    string
+  type:     FieldType
+  step?:    number
+  min?:     number
+  max?:     number
+  options?: { value: string; label: string }[]
 }
 
 interface Section { title: string; fields: Field[] }
@@ -22,8 +23,8 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'chartWidth',           label: 'Chart width',        type: 'number', min: 100, step: 10 },
       { key: 'chartHeight',          label: 'Chart height',       type: 'number', min: 100, step: 10 },
-      { key: 'clusteredChartWidth',  label: 'Clustered chart width',  type: 'number', min: 100, step: 10 },
-      { key: 'clusteredChartHeight', label: 'Clustered chart height', type: 'number', min: 100, step: 10 },
+      { key: 'clusteredChartWidth',  label: 'Clustered width',  type: 'number', min: 100, step: 10 },
+      { key: 'clusteredChartHeight', label: 'Clustered height', type: 'number', min: 100, step: 10 },
       { key: 'svgWidth',             label: 'SVG card width',  type: 'number', min: 0, step: 10 },
       { key: 'svgHeight',            label: 'SVG card height', type: 'number', min: 0, step: 10 },
     ],
@@ -36,8 +37,13 @@ const SECTIONS: Section[] = [
       { key: 'barBorderRadius',  label: 'Border radius',     type: 'number', min: 0, step: 1 },
       { key: 'barBorderWidth',   label: 'Border width',      type: 'number', min: 0, step: 0.5 },
       { key: 'paddingTop',       label: 'Padding top',       type: 'number', min: 0, step: 4 },
-      { key: 'paddingBottom',    label: 'Padding bottom',    type: 'number', min: 0, step: 4 },
-    ],
+      { key: 'paddingBottom',    label: 'Padding bottom',    type: 'number', min: 0, step: 4 },      { key: 'barSortOrder',     label: 'Bar order',         type: 'select',
+        options: [
+          { value: 'none',       label: 'As imported' },
+          { value: 'ascending',  label: 'A \u2192 Z' },
+          { value: 'descending', label: 'Z \u2192 A' },
+        ],
+      },    ],
   },
   {
     title: 'Value labels (above bars)',
@@ -62,6 +68,7 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'showYTitle',      label: 'Show Y title',      type: 'toggle' },
       { key: 'showYTickLabels', label: 'Show tick labels',  type: 'toggle' },
+      { key: 'showXDomain',     label: 'Show X axis line',  type: 'toggle' },
       { key: 'showN',           label: 'Show n= count',     type: 'toggle' },
       { key: 'nLabelSize',      label: 'n= font size',      type: 'number', min: 8, step: 1 },
       { key: 'nLabelColor',     label: 'n= color',          type: 'color' },
@@ -81,12 +88,12 @@ const SECTIONS: Section[] = [
       { key: 'cardTagSize',          label: 'Tag size',           type: 'number', min: 8, step: 1 },
       { key: 'cardTagWeight',        label: 'Tag weight',         type: 'text' },
       { key: 'cardTagColor',         label: 'Tag color',          type: 'color' },
-      { key: 'cardCategorySize',     label: 'Category size',      type: 'number', min: 8, step: 1 },
-      { key: 'cardCategoryWeight',   label: 'Category weight',    type: 'text' },
-      { key: 'cardCategoryColor',    label: 'Category color',     type: 'color' },
-      { key: 'cardDialectSize',      label: 'Dialect size',       type: 'number', min: 8, step: 1 },
-      { key: 'cardDialectWeight',    label: 'Dialect weight',     type: 'text' },
-      { key: 'cardDialectColor',     label: 'Dialect color',      type: 'color' },
+      { key: 'cardCategorySize',     label: 'Line 1 size',        type: 'number', min: 8, step: 1 },
+      { key: 'cardCategoryWeight',   label: 'Line 1 weight',      type: 'text' },
+      { key: 'cardCategoryColor',    label: 'Line 1 color',       type: 'color' },
+      { key: 'cardDialectSize',      label: 'Line 2 size',        type: 'number', min: 8, step: 1 },
+      { key: 'cardDialectWeight',    label: 'Line 2 weight',      type: 'text' },
+      { key: 'cardDialectColor',     label: 'Line 2 color',       type: 'color' },
     ],
   },
   {
@@ -133,12 +140,22 @@ export default function ConfigEditor({ config, onChange }: Props) {
             {sec.title}
           </h3>
           <div className="grid grid-cols-2 gap-x-4 gap-y-2">
-            {sec.fields.map(({ key, label, type, step, min, max }) => {
+            {sec.fields.map(({ key, label, type, step, min, max, options }) => {
               const val = config[key]
               return (
                 <label key={key} className="flex flex-col gap-0.5">
                   <span className="text-neutral-500 text-xs">{label}</span>
-                  {type === 'toggle' ? (
+                  {type === 'select' ? (
+                    <select
+                      value={String(val)}
+                      onChange={e => patch(key, e.target.value)}
+                      className="border border-neutral-200 rounded px-1.5 py-0.5 text-xs w-full"
+                    >
+                      {options?.map(o => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
+                  ) : type === 'toggle' ? (
                     <input
                       type="checkbox"
                       checked={!!val}

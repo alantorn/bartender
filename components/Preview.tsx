@@ -1,17 +1,14 @@
 'use client'
 
 import type { GeneratedCard } from '@/lib/types'
-
-type ChartType = 'bar' | 'box' | 'scatter'
-type SplitBy   = 'none' | 'row' | 'column'
-
-interface MetricEntry {
-  label:             string
-  chartType:         ChartType
-  pivot:             boolean
-  splitBy:           SplitBy
-  showClusterLabels: boolean
-}
+import {
+  type ChartType,
+  type SplitBy,
+  type MetricEntry,
+  parseMetrics,
+  patchMetricField,
+  slug,
+} from '@/lib/datasets'
 
 interface Props {
   cards:                GeneratedCard[]
@@ -32,38 +29,6 @@ const SPLIT_BY: { value: SplitBy; label: string }[] = [
   { value: 'row',    label: '÷ rows' },
   { value: 'column', label: '÷ cols' },
 ]
-
-function slug(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
-}
-
-function parseMetrics(json: string): MetricEntry[] {
-  try {
-    const datasets = JSON.parse(json)
-    if (!Array.isArray(datasets) || !datasets[0]?.metrics) return []
-    return (datasets[0].metrics as { label: string; chartType?: ChartType; pivot?: boolean; splitBy?: SplitBy; showClusterLabels?: boolean }[]).map(m => ({
-      label:             m.label,
-      chartType:         m.chartType ?? 'bar',
-      pivot:             m.pivot ?? false,
-      splitBy:           m.splitBy ?? 'none',
-      showClusterLabels: m.showClusterLabels ?? true,
-    }))
-  } catch { return [] }
-}
-
-function patchMetricField(json: string, metricLabel: string, key: string, value: unknown): string {
-  try {
-    const datasets = JSON.parse(json)
-    if (!Array.isArray(datasets)) return json
-    for (const ds of datasets) {
-      if (!ds.metrics) continue
-      for (const m of ds.metrics) {
-        if (m.label === metricLabel) m[key] = value
-      }
-    }
-    return JSON.stringify(datasets, null, 2)
-  } catch { return json }
-}
 
 function downloadCard(card: GeneratedCard) {
   const blob = new Blob([card.svgData], { type: 'image/svg+xml' })

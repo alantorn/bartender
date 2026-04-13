@@ -1,5 +1,7 @@
 @import 'tailwindcss';
-@import '@heroui/styles';
+
+/* Force class-based dark mode so Catalyst dark: variants always apply */
+@variant dark (&:where(.dark, .dark *));
 
 :root {
   --background: #ffffff;

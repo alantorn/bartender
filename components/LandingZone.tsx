@@ -20,7 +20,7 @@ export default function LandingZone({ onFile, inspecting, error }: Props) {
   }
 
   return (
-    <div className="h-screen flex flex-col items-center justify-center bg-neutral-900">
+    <div className="h-screen flex flex-col items-center justify-center bg-zinc-950">
       <div
         onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
         onDragLeave={() => setDragging(false)}

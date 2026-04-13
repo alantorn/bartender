@@ -3,11 +3,20 @@
 import { useState } from 'react'
 import FileDropZone from '@/components/FileDropZone'
 import ConfigEditor from '@/components/ConfigEditor'
-import type { ChartConfig, SeriesColor } from '@/lib/types'
+import type { ChartConfig } from '@/lib/types'
+import {
+  type ChartType,
+  type SplitBy,
+  type MetricEntry,
+  type SeriesColorEntry,
+  parseMetrics,
+  parseMetricColors,
+  patchMetricField,
+  patchSeriesColor,
+  slug,
+} from '@/lib/datasets'
 
-type ChartType = 'bar' | 'box' | 'scatter'
-type SplitBy   = 'none' | 'row' | 'column'
-type Tab       = 'sheets' | 'style'
+type Tab = 'sheets' | 'style'
 
 const CHART_TYPES: { value: ChartType; label: string }[] = [
   { value: 'bar',     label: 'Bar' },
@@ -34,89 +43,6 @@ export interface DataSidebarProps {
   onChange:               (patch: Partial<ChartConfig>) => void
   onSave:                 () => void
   cardIds:                string[]
-}
-
-// ─── JSON helpers ─────────────────────────────────────────────────────────────
-
-function parseMetrics(json: string): { label: string; chartType: ChartType; pivot: boolean; splitBy: SplitBy; showClusterLabels: boolean }[] {
-  try {
-    const datasets = JSON.parse(json)
-    if (!Array.isArray(datasets) || !datasets[0]?.metrics) return []
-    return (datasets[0].metrics as { label: string; chartType?: ChartType; pivot?: boolean; splitBy?: SplitBy; showClusterLabels?: boolean }[]).map(m => ({
-      label:             m.label,
-      chartType:         m.chartType ?? 'bar',
-      pivot:             m.pivot ?? false,
-      splitBy:           m.splitBy ?? 'none',
-      showClusterLabels: m.showClusterLabels ?? true,
-    }))
-  } catch { return [] }
-}
-
-/** Deduplicated series color entries — one per unique col name. */
-interface SeriesColorEntry {
-  col:   string
-  label?: string
-  color: SeriesColor
-}
-
-function parseMetricColors(json: string): SeriesColorEntry[] {
-  try {
-    const datasets = JSON.parse(json)
-    if (!Array.isArray(datasets) || !datasets[0]?.metrics) return []
-    const seen = new Map<string, SeriesColorEntry>()
-    for (const m of datasets[0].metrics as { modelDefs?: { col: string; label?: string; color?: SeriesColor }[] }[]) {
-      if (!m.modelDefs?.length) continue
-      for (const d of m.modelDefs) {
-        if (!seen.has(d.col)) {
-          seen.set(d.col, {
-            col:   d.col,
-            label: d.label,
-            color: d.color ?? { bg: '#cccccc', border: '#666666' },
-          })
-        }
-      }
-    }
-    return [...seen.values()]
-  } catch { return [] }
-}
-
-function patchMetricField<T>(json: string, metricLabel: string, key: string, value: T): string {
-  try {
-    const datasets = JSON.parse(json)
-    if (!Array.isArray(datasets)) return json
-    for (const ds of datasets) {
-      if (!ds.metrics) continue
-      for (const m of ds.metrics) {
-        if (m.label === metricLabel) m[key] = value
-      }
-    }
-    return JSON.stringify(datasets, null, 2)
-  } catch { return json }
-}
-
-/** Patch a color field for ALL metrics that contain the given col. */
-function patchSeriesColor(json: string, col: string, colorKey: 'bg' | 'border', value: string): string {
-  try {
-    const datasets = JSON.parse(json)
-    if (!Array.isArray(datasets)) return json
-    for (const ds of datasets) {
-      if (!ds.metrics) continue
-      for (const m of ds.metrics) {
-        if (!m.modelDefs) continue
-        for (const d of m.modelDefs) {
-          if (d.col === col) {
-            d.color = { ...(d.color ?? { bg: '#cccccc', border: '#666666' }), [colorKey]: value }
-          }
-        }
-      }
-    }
-    return JSON.stringify(datasets, null, 2)
-  } catch { return json }
-}
-
-// ─── slug (mirrors generator.ts) ────────────────────────────────────────────
-function slug(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
 // ─── component ───────────────────────────────────────────────────────────────

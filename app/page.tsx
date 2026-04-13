@@ -223,7 +223,7 @@ export default function StudioPage() {
         />
 
         <main className='flex-1 overflow-y-auto p-6 min-h-0'>
-          <Preview cards={cards} loading={loading} error={genError} />
+          <Preview cards={cards} loading={loading} error={genError} datasetsJson={datasetsJson} onDatasetsJsonChange={setDatasetsJson} />
         </main>
 
         <ConfigPanel

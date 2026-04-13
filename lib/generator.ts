@@ -136,6 +136,7 @@ function yAxis(C: ChartConfig, title: string) {
     labelFontSize:   C.axisTickSize,
     labelFontWeight: C.axisTickWeight,
     labelFont:       C.fontMono,
+    labelPadding:    C.yAxisLabelPadding,
     tickColor:       C.axisTickColor,
     domainColor:     C.axisTickColor,
     title:           C.showYTitle ? title : null,
@@ -259,7 +260,11 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
     field: 'category',
     type:  'nominal' as const,
     sort:  vlSort,
-    scale: { domain: vlSort ? undefined : xCatDomain },
+    scale: {
+      ...(vlSort ? {} : { domain: xCatDomain }),
+      paddingInner: C.clusterPaddingInner,
+      ...(C.clusterStep != null ? { step: C.clusterStep } : {}),
+    },
     axis:  { ...xAxisStyle, orient: 'top' as const, labelAngle: 0, domain: false },
   }
 
@@ -268,19 +273,23 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
   const xTextEnc = flatMode ? xEncFlat    : xEncClustered
   const xTextOff = flatMode ? undefined   : { field: 'model', type: 'nominal' as const, sort: vlSort, scale: { domain: vlSort ? undefined : xOffsetDomain } }
 
-  // Auto-widen: each bar gets at least C.barWidth px; total = categories × innerBars × barWidth
-  // In pivot mode: outer clusters = modelDefs (columns), inner bars = rows
+  // Width: when clusterStep is set, use Vega-Lite { step } syntax so each cluster
+  // group has exactly that many px — total width is derived automatically.
+  // Otherwise fall back to chartWidth with auto-widen floor.
   const numCategories = pivot ? modelDefs.length : rows.length
   const numModels     = pivot ? rows.length       : modelDefs.length
-  const minWidth      = flatMode
-    ? C.chartWidth
-    : Math.max(C.chartWidth, numCategories * numModels * (C.barWidth + 4))
+  const specWidth: number | { step: number } =
+    flatMode
+      ? C.chartWidth
+      : C.clusterStep != null
+        ? { step: C.clusterStep }
+        : Math.max(C.chartWidth, numCategories * numModels * (C.barWidth + 4))
 
   return {
     $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
-    width:      minWidth,
+    width:      specWidth,
     height:     C.chartHeight,
-    padding:    { top: C.paddingTop, right: 16, bottom: C.paddingBottom, left: 8 },
+    padding:    { top: C.paddingTop, right: C.paddingRight, bottom: C.paddingBottom, left: C.paddingLeft },
     background: 'transparent',
     config:     { view: { stroke: null } },
     data:       { values },
@@ -404,7 +413,7 @@ export function buildBoxSpec(C: ChartConfig, rows: BoxRow[], yTitle: string) {
     $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
     width:      C.chartWidth,
     height:     C.chartHeight,
-    padding:    { top: C.paddingTop, right: 16, bottom: C.paddingBottom, left: 8 },
+    padding:    { top: C.paddingTop, right: C.paddingRight, bottom: C.paddingBottom, left: C.paddingLeft },
     background: 'transparent',
     config:     { view: { stroke: null } },
     data:       { values },
@@ -518,7 +527,7 @@ export function buildScatterSpec(C: ChartConfig, parsed: ASRParsed, yTitle: stri
     $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
     width:      C.chartWidth,
     height:     C.chartHeight,
-    padding:    { top: C.paddingTop, right: 24, bottom: C.paddingBottom, left: 8 },
+    padding:    { top: C.paddingTop, right: C.paddingRight + 8, bottom: C.paddingBottom, left: C.paddingLeft },
     background: 'transparent',
     config:     { view: { stroke: null } },
     data:       { values: points },
@@ -573,7 +582,7 @@ export function buildClusteredSpec(
     $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
     width:      C.clusteredChartWidth,
     height:     C.clusteredChartHeight,
-    padding:    { top: C.paddingTop, right: 16, bottom: C.paddingBottom, left: 8 },
+    padding:    { top: C.paddingTop, right: C.paddingRight, bottom: C.paddingBottom, left: C.paddingLeft },
     background: 'transparent',
     config:     { view: { stroke: null } },
     data:       { values },
@@ -581,7 +590,7 @@ export function buildClusteredSpec(
       {
         mark: { type: 'bar', width: C.barWidth, cornerRadius: C.barBorderRadius, strokeWidth: C.barBorderWidth },
         encoding: {
-          x:       { field: 'category', type: 'nominal', axis: { labelColor: C.axisTickColor, labelFontSize: C.axisTickSize, labelFont: C.fontSans, ticks: false, domain: C.showXDomain, domainColor: C.axisTickColor, title: null, grid: false } },
+          x:       { field: 'category', type: 'nominal', axis: { labelColor: C.axisTickColor, labelFontSize: C.axisTickSize, labelFont: C.fontSans, ticks: false, domain: C.showXDomain, domainColor: C.axisTickColor, title: null, grid: false }, scale: { paddingInner: C.clusterPaddingInner, ...(C.clusterStep != null ? { step: C.clusterStep } : {}) } },
           xOffset: { field: 'model',    type: 'nominal', scale: { paddingInner: C.barPaddingInner } },
           y:       { field: 'score',    type: 'quantitative', scale: { zero: true }, axis: yAxis(C, yTitle) },
           color:   { field: 'barColor', type: 'nominal', scale: null, legend: null },
@@ -624,9 +633,10 @@ export async function specToSvg(spec: object): Promise<string> {
 export function wrapAsSvg(
   C: ChartConfig,
   chartSvg: string,
-  opts: { tag: string; category: string; dialect: string; count?: number; headerHeight?: number; fixedWidth?: number | null; fixedHeight?: number | null },
+  opts: { tag: string; category: string; dialect: string; count?: number; fixedWidth?: number | null; fixedHeight?: number | null },
 ): string {
-  const { tag, count, headerHeight = 80, fixedWidth = null, fixedHeight = null } = opts
+  const { tag, count, fixedWidth = null, fixedHeight = null } = opts
+  const headerHeight = C.cardHeaderHeight
 
   // Auto-split title: if no explicit dialect and category contains ' - ',
   // split into line1 (before) and line2 (after). Otherwise use as-is.
@@ -653,9 +663,9 @@ export function wrapAsSvg(
     .replace(/^<svg /,  (m) => (/\bviewBox=/.test(chartSvg) ? m : `<svg ${viewBox} `))
     .replace(/^<svg /,  `<svg y="${headerHeight}" `)
 
-  const line1Y = 36
+  const line1Y = C.cardLine1Y
   const tagY   = line1Y
-  const line2Y = line1Y + C.cardCategorySize + 6
+  const line2Y = line1Y + C.cardCategorySize + C.cardLineGap
 
   const nLabel = C.showN && count != null && count > 0
     ? `<text x="${w - 10}" y="${totalH - 10}" text-anchor="end" font-family="${C.fontMono}" font-size="${C.nLabelSize}" fill="${C.nLabelColor}">n=${count}</text>`
@@ -663,11 +673,158 @@ export function wrapAsSvg(
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${totalH}">
   <rect width="${w}" height="${totalH}" fill="${C.cardBg}" />
-  <text x="${w - 14}" y="${tagY}" text-anchor="end" font-family="${C.fontSans}" font-size="${C.cardTagSize}" font-weight="${C.cardTagWeight}" fill="${C.cardTagColor}">${tag}</text>
-  <text x="14" y="${line1Y}" font-family="${C.fontSans}" font-size="${C.cardCategorySize}" font-weight="${C.cardCategoryWeight}" fill="${C.cardCategoryColor}">${line1}</text>
-  ${line2 ? `<text x="14" y="${line2Y}" font-family="${C.fontSans}" font-size="${C.cardDialectSize}" font-weight="${C.cardDialectWeight}" fill="${C.cardDialectColor}">${line2}</text>` : ''}
+  <text x="${w - C.cardHeaderPaddingX}" y="${tagY}" text-anchor="end" font-family="${C.fontSans}" font-size="${C.cardTagSize}" font-weight="${C.cardTagWeight}" fill="${C.cardTagColor}">${tag}</text>
+  <text x="${C.cardHeaderPaddingX}" y="${line1Y}" font-family="${C.fontSans}" font-size="${C.cardCategorySize}" font-weight="${C.cardCategoryWeight}" fill="${C.cardCategoryColor}">${line1}</text>
+  ${line2 ? `<text x="${C.cardHeaderPaddingX}" y="${line2Y}" font-family="${C.fontSans}" font-size="${C.cardDialectSize}" font-weight="${C.cardDialectWeight}" fill="${C.cardDialectColor}">${line2}</text>` : ''}
   ${innerResized}
   ${nLabel}
+</svg>`
+}
+
+// ── Layout diagram ────────────────────────────────────────────────────────────
+
+export function buildTemplateDiagramSvg(C: ChartConfig): string {
+  const HEADER_H_VAL = C.cardHeaderHeight
+  const cardNatW = C.svgWidth  ?? (C.chartWidth  + C.paddingLeft + C.paddingRight)
+  const cardNatH = C.svgHeight ?? (HEADER_H_VAL  + C.paddingTop  + C.chartHeight  + C.paddingBottom)
+
+  const sc  = Math.min(750 / cardNatW, 440 / cardNatH, 2.5)
+  const fn  = (n: number) => String(Math.round(n * 10) / 10)
+  const s   = (v: number) => v * sc
+  const sW  = s(cardNatW)
+  const sH  = s(cardNatH)
+
+  const ML = 20, MT = 36, MR = 210, MB = 80
+  const TOTAL_W = Math.ceil(ML + sW + MR)
+  const TOTAL_H = Math.ceil(MT + sH + MB)
+
+  const CX   = ML, CY = MT
+  const hdrH = s(HEADER_H_VAL)
+  const padT = s(C.paddingTop)
+  const padB = s(C.paddingBottom)
+  const padL = s(C.paddingLeft)
+  const padR = s(C.paddingRight)
+  const pltW = s(C.chartWidth)
+  const pltH = s(C.chartHeight)
+  const pltX = CX + padL
+  const pltY = CY + hdrH + padT
+
+  // Mock bars: 2 groups × 2 bars
+  const nG = 2, nB = 2
+  const rawGStep = C.clusterStep != null ? s(C.clusterStep) : pltW / nG
+  const gStep = Math.min(rawGStep, pltW)
+  const gGap  = gStep * C.clusterPaddingInner
+  const gInW  = gStep - gGap
+  const bSlot = gInW / nB
+  const bW    = Math.max(3, Math.min(s(C.barWidth), bSlot * (1 - C.barPaddingInner)))
+  const BHS   = [[pltH * 0.55, pltH * 0.75], [pltH * 0.40, pltH * 0.62]]
+  const BC    = ['rgba(189,228,202,0.9)', 'rgba(179,211,255,0.9)']
+
+  const barsSvg: string[] = []
+  for (let g = 0; g < nG; g++) {
+    for (let b = 0; b < nB; b++) {
+      const bx = pltX + g * gStep + gGap / 2 + b * bSlot + (bSlot - bW) / 2
+      const bh = BHS[g][b]
+      barsSvg.push(`  <rect x="${fn(bx)}" y="${fn(pltY + pltH - bh)}" width="${fn(bW)}" height="${fn(bh)}" fill="${BC[b]}" rx="1"/>`)
+    }
+  }
+
+  const DC = '#2563EB', LC = '#1e40af'
+  const MF = `font-family="ui-monospace,monospace" font-size="9.5" fill="${LC}"`
+
+  function hdim(x1: number, x2: number, y: number, label: string, labelOff = 12): string {
+    const mid = (x1 + x2) / 2
+    const rows: string[] = []
+    if (Math.abs(x2 - x1) >= 8) {
+      rows.push(
+        `  <line x1="${fn(x1)}" y1="${fn(y)}" x2="${fn(x2)}" y2="${fn(y)}" stroke="${DC}" stroke-width="1"/>`,
+        `  <line x1="${fn(x1)}" y1="${fn(y - 4)}" x2="${fn(x1)}" y2="${fn(y + 4)}" stroke="${DC}" stroke-width="1"/>`,
+        `  <line x1="${fn(x2)}" y1="${fn(y - 4)}" x2="${fn(x2)}" y2="${fn(y + 4)}" stroke="${DC}" stroke-width="1"/>`,
+      )
+    }
+    rows.push(`  <text x="${fn(mid)}" y="${fn(y + labelOff)}" text-anchor="middle" ${MF}>${label}</text>`)
+    return rows.join('\n')
+  }
+
+  function vdim(x: number, y1: number, y2: number, label: string, lxOffset = 8): string {
+    const mid = (y1 + y2) / 2
+    const rows: string[] = []
+    if (Math.abs(y2 - y1) >= 6) {
+      rows.push(
+        `  <line x1="${fn(x)}" y1="${fn(y1)}" x2="${fn(x)}" y2="${fn(y2)}" stroke="${DC}" stroke-width="1"/>`,
+        `  <line x1="${fn(x - 4)}" y1="${fn(y1)}" x2="${fn(x + 4)}" y2="${fn(y1)}" stroke="${DC}" stroke-width="1"/>`,
+        `  <line x1="${fn(x - 4)}" y1="${fn(y2)}" x2="${fn(x + 4)}" y2="${fn(y2)}" stroke="${DC}" stroke-width="1"/>`,
+      )
+    }
+    rows.push(`  <text x="${fn(x + lxOffset)}" y="${fn(mid + 3)}" dominant-baseline="middle" ${MF}>${label}</text>`)
+    return rows.join('\n')
+  }
+
+  const dimsSvg: string[] = []
+
+  // Horizontal dims below card
+  const yH1 = CY + sH + 14
+  const yH2 = CY + sH + 30
+  dimsSvg.push(hdim(CX, CX + sW, yH1, `SVG card width: ${C.svgWidth != null ? C.svgWidth : `auto → ${Math.round(cardNatW)}`}`))
+  dimsSvg.push(hdim(pltX, pltX + pltW, yH2, `Chart width: ${C.chartWidth}`))
+  if (padL >= 2) dimsSvg.push(hdim(CX, pltX,             yH2, `Padding left: ${C.paddingLeft}`))
+  if (padR >= 2) dimsSvg.push(hdim(pltX + pltW, CX + sW, yH2, `Padding right: ${C.paddingRight}`))
+
+  // Vertical dims right of card
+  const xV0 = CX + sW + 12
+  const xV1 = CX + sW + 70
+  dimsSvg.push(vdim(xV0, CY, CY + sH, `SVG card height: ${C.svgHeight != null ? C.svgHeight : `auto → ${Math.round(cardNatH)}`}`))
+  dimsSvg.push(vdim(xV1, CY, CY + hdrH, `Card header height: ${C.cardHeaderHeight}`))
+  if (padT >= 2) dimsSvg.push(vdim(xV1, CY + hdrH, pltY,      `Padding top: ${C.paddingTop}`))
+  dimsSvg.push(   vdim(xV1, pltY, pltY + pltH,                 `Chart height: ${C.chartHeight}`))
+  if (padB >= 2) dimsSvg.push(vdim(xV1, pltY + pltH, CY + sH, `Padding bottom: ${C.paddingBottom}`))
+
+  // Bar-level dims below plot
+  const g0start    = pltX + gGap / 2
+  const barDetailY = pltY + pltH + 8
+  dimsSvg.push(hdim(g0start, g0start + gStep, barDetailY,
+    C.clusterStep != null ? `Group step px: ${C.clusterStep}` : `Group step px: auto (≈${Math.round(gStep / sc)})`))
+
+  const b0x = g0start + (bSlot - bW) / 2
+  dimsSvg.push(hdim(b0x, b0x + bW, barDetailY + 18, `Bar width: ${C.barWidth}`))
+
+  // gap between groups
+  const gapL = pltX + gInW + gGap / 2
+  const gapR = pltX + gStep + gGap / 2
+  if (gapR - gapL > 3) dimsSvg.push(hdim(gapL, gapR, barDetailY + 18, `Group gap 0–1: ${C.clusterPaddingInner}`))
+
+  // gap between bars within group
+  const bar0R = b0x + bW
+  const bar1L = g0start + bSlot + (bSlot - bW) / 2
+  if (bar1L - bar0R > 3) dimsSvg.push(hdim(bar0R, bar1L, barDetailY + 36, `Bar gap within group 0–1: ${C.barPaddingInner}`))
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${TOTAL_W}" height="${TOTAL_H}">
+  <rect width="${TOTAL_W}" height="${TOTAL_H}" fill="#F7F7FB"/>
+  <text x="${CX}" y="${MT - 12}" font-size="11" font-weight="600" fill="#52616F" font-family="ui-sans-serif,sans-serif">Layout Diagram</text>
+  <!-- Card bg -->
+  <rect x="${fn(CX)}" y="${fn(CY)}" width="${fn(sW)}" height="${fn(sH)}" fill="white" stroke="#D1D5DB" stroke-width="1"/>
+  <!-- Header zone -->
+  <rect x="${fn(CX)}" y="${fn(CY)}" width="${fn(sW)}" height="${fn(hdrH)}" fill="rgba(254,243,199,0.85)"/>
+  <text x="${fn(CX + sW / 2)}" y="${fn(CY + hdrH / 2 + 4)}" text-anchor="middle" font-size="9" font-family="ui-sans-serif,sans-serif" fill="#92400E">card header</text>
+  <!-- Padding zones -->
+  ${padT > 0 ? `<rect x="${fn(pltX)}" y="${fn(CY + hdrH)}" width="${fn(pltW)}" height="${fn(padT)}" fill="rgba(219,234,254,0.7)"/>` : ''}
+  ${padB > 0 ? `<rect x="${fn(pltX)}" y="${fn(pltY + pltH)}" width="${fn(pltW)}" height="${fn(padB)}" fill="rgba(219,234,254,0.7)"/>` : ''}
+  ${padL > 0 ? `<rect x="${fn(CX)}" y="${fn(CY + hdrH)}" width="${fn(padL)}" height="${fn(pltH + padT + padB)}" fill="rgba(219,234,254,0.7)"/>` : ''}
+  ${padR > 0 ? `<rect x="${fn(pltX + pltW)}" y="${fn(CY + hdrH)}" width="${fn(padR)}" height="${fn(pltH + padT + padB)}" fill="rgba(219,234,254,0.7)"/>` : ''}
+  <!-- Plot area -->
+  <rect x="${fn(pltX)}" y="${fn(pltY)}" width="${fn(pltW)}" height="${fn(pltH)}" fill="white" stroke="#E5E7EB" stroke-width="0.5"/>
+  <!-- Grid lines -->
+  <line x1="${fn(pltX)}" y1="${fn(pltY + pltH * 0.25)}" x2="${fn(pltX + pltW)}" y2="${fn(pltY + pltH * 0.25)}" stroke="#F3F4F6" stroke-width="1"/>
+  <line x1="${fn(pltX)}" y1="${fn(pltY + pltH * 0.50)}" x2="${fn(pltX + pltW)}" y2="${fn(pltY + pltH * 0.50)}" stroke="#F3F4F6" stroke-width="1"/>
+  <line x1="${fn(pltX)}" y1="${fn(pltY + pltH * 0.75)}" x2="${fn(pltX + pltW)}" y2="${fn(pltY + pltH * 0.75)}" stroke="#F3F4F6" stroke-width="1"/>
+  <!-- Mock bars -->
+${barsSvg.join('\n')}
+  <!-- Axis line -->
+  <line x1="${fn(pltX)}" y1="${fn(pltY + pltH)}" x2="${fn(pltX + pltW)}" y2="${fn(pltY + pltH)}" stroke="#a0a0b8" stroke-width="1"/>
+  <!-- Card border on top -->
+  <rect x="${fn(CX)}" y="${fn(CY)}" width="${fn(sW)}" height="${fn(sH)}" fill="none" stroke="#9CA3AF" stroke-width="1"/>
+  <!-- Dimension annotations -->
+${dimsSvg.join('\n')}
 </svg>`
 }
 
@@ -692,6 +849,11 @@ export async function generateCards(
 ): Promise<GeneratedCard[]> {
   const cards: GeneratedCard[] = []
   let cardIndex = 0
+
+  // Prepend layout diagram as card 0 when enabled
+  if (config.showLayoutDiagram) {
+    cards.push({ id: 'layout_diagram', svgData: buildTemplateDiagramSvg(config) })
+  }
 
   for (const dataset of datasets) {
 

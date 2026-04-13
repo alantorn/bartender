@@ -87,7 +87,7 @@ export default function StudioPage() {
     if (!uploadedFile) throw new Error('No file uploaded')
     const form = new FormData()
     form.append('datasets', JSON.stringify(datasets))
-    form.append('config', JSON.stringify(configOverride))
+    form.append('config', JSON.stringify(mergedConfig ?? configOverride))
     for (const ds of datasets) form.append(`files.${ds.id}`, uploadedFile)
     return form
   }

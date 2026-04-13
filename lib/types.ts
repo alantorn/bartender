@@ -72,11 +72,15 @@ export interface ChartConfig {
   barBorderWidth:    number
   barAlpha:          number
   barWidth:          number
-  barPaddingInner:   number
+  barPaddingInner:   number  // gap between bars within a cluster group (xOffset.scale.paddingInner)
+  clusterStep:       number | null  // px per cluster group (x.scale.step); null = use chartWidth
+  clusterPaddingInner: number       // gap between cluster groups (x.scale.paddingInner 0–1)
   barSortOrder:      'none' | 'ascending' | 'descending'
   // Spacing
   paddingTop:        number
   paddingBottom:     number
+  paddingLeft:       number
+  paddingRight:      number
   // Typography
   fontUrlSans:       string
   fontUrlMono:       string
@@ -103,6 +107,10 @@ export interface ChartConfig {
   cardDialectSize:   number
   cardDialectWeight: string
   cardDialectColor:  string
+  cardHeaderHeight:  number
+  cardHeaderPaddingX: number
+  cardLine1Y:        number
+  cardLineGap:       number
   // Axes
   showYTitle:        boolean
   showYTickLabels:   boolean
@@ -114,6 +122,7 @@ export interface ChartConfig {
   axisTickColor:     string
   axisTickSize:      number
   axisTickWeight:    string
+  yAxisLabelPadding: number
   yTitleColor:       string
   yTitleSize:        number
   yTitleWeight:      string
@@ -129,6 +138,7 @@ export interface ChartConfig {
   cardRadius:        number
   sectionTitleColor: string
   sectionBorderColor: string
+  showLayoutDiagram: boolean
 }
 
 // What the generate API returns per card

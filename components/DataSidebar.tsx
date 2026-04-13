@@ -135,9 +135,14 @@ export default function DataSidebar({
   onSave,
   cardIds,
 }: DataSidebarProps) {
-  const [tab, setTab] = useState<Tab>('sheets')
+  const [tab, setTab]           = useState<Tab>('sheets')
+  const [sheetFilter, setSheetFilter] = useState('')
   const metrics      = parseMetrics(datasetsJson)
   const metricColors = parseMetricColors(datasetsJson)
+
+  const filteredMetrics = sheetFilter.trim()
+    ? metrics.filter(m => m.label.toLowerCase().includes(sheetFilter.toLowerCase()))
+    : metrics
 
   const tabCls = (t: Tab) =>
     `flex-1 py-1.5 text-xs font-medium transition-colors ${
@@ -189,9 +194,18 @@ export default function DataSidebar({
           {/* Metrics list */}
           {metrics.length > 0 && (
             <div>
-              <p className="text-xs font-medium text-gray-400 mb-1">Sheets</p>
+              <div className="flex items-center gap-1.5 mb-2">
+                <p className="text-xs font-medium text-gray-400 shrink-0">Sheets</p>
+                <input
+                  type="search"
+                  placeholder="Filter…"
+                  value={sheetFilter}
+                  onChange={e => setSheetFilter(e.target.value)}
+                  className="flex-1 min-w-0 bg-white/10 border border-white/20 rounded px-2 py-0.5 text-xs text-gray-200 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
               <div className="flex flex-col gap-1">
-                {metrics.map(m => (
+                {filteredMetrics.map(m => (
                   <div key={m.label} className="flex flex-col gap-0.5 py-1 border-b border-white/5 last:border-0">
                     <div className="flex items-center gap-1">
                       {(() => {

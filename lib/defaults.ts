@@ -13,8 +13,8 @@ export const DEFAULT_CONFIG: ChartConfig = {
   clusteredChartHeight: 220,
   cardGap:               32,
   sectionGap:            64,
-  svgWidth:             550,
-  svgHeight:            460,
+  svgWidth:             null,
+  svgHeight:            null,
   svgClusteredWidth:    null,
   svgClusteredHeight:   null,
 
@@ -24,11 +24,15 @@ export const DEFAULT_CONFIG: ChartConfig = {
   barAlpha:        1,
   barWidth:        12,
   barPaddingInner: 0.3,
+  clusterStep:     null,
+  clusterPaddingInner: 0.1,
   barSortOrder:    'none' as const,
 
   // Spacing
   paddingTop:    32,
   paddingBottom: 32,
+  paddingLeft:    8,
+  paddingRight:  16,
 
   // Typography
   fontUrlSans: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap',
@@ -59,6 +63,10 @@ export const DEFAULT_CONFIG: ChartConfig = {
   cardDialectSize:      22,
   cardDialectWeight:   '600',
   cardDialectColor:    '#83839a',
+  cardHeaderHeight:     80,
+  cardHeaderPaddingX:   14,
+  cardLine1Y:           36,
+  cardLineGap:           6,
 
   // Axes
   showYTitle:      true,
@@ -71,6 +79,7 @@ export const DEFAULT_CONFIG: ChartConfig = {
   axisTickColor:   '#a0a0b8',
   axisTickSize:     16,
   axisTickWeight:  '400',
+  yAxisLabelPadding: 8,
   yTitleColor:     '#505065',
   yTitleSize:       16,
   yTitleWeight:    '400',
@@ -87,4 +96,5 @@ export const DEFAULT_CONFIG: ChartConfig = {
   cardRadius:          0,
   sectionTitleColor:  '#c8c8e0',
   sectionBorderColor: '#2a2a38',
+  showLayoutDiagram:   true,
 }

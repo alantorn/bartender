@@ -3,7 +3,7 @@
 import { Input, InputGroup } from '@/components/input'
 import { MagnifyingGlassIcon } from '@heroicons/react/16/solid'
 
-import { useRef } from 'react'
+import { useRef, useState } from 'react'
 import { Dropdown } from '@/components/dropdown'
 import {
   Sidebar,
@@ -32,6 +32,7 @@ interface Props {
   loading: boolean
   onGenerate: () => void
   onConfigOpen: () => void
+  cards?: { id: string; label: string }[]
 }
 
 export default function AppSidebar({
@@ -42,12 +43,20 @@ export default function AppSidebar({
   loading,
   onGenerate,
   onConfigOpen,
+  cards = [],
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const [search, setSearch] = useState('')
+  const filteredCards = cards.filter(c => c.label.toLowerCase().includes(search.toLowerCase()))
   return (
     <Sidebar>
       <SidebarHeader>
-        <Dropdown></Dropdown>
+        
+        {/* Logo */}
+        <div className='flex items-center gap-2.5 px-2 py-3  mb-10'>
+          <img src='/bartender-logo.svg' alt='Bartender' className='w-8 h-12' />
+          <span className='text-3xl font-semibold text-white tracking-tight'>Bartender</span>
+        </div>
         <SidebarSection className='max-lg:hidden'>
           {/* Document picker */}
           <SidebarItem
@@ -81,27 +90,49 @@ export default function AppSidebar({
         </SidebarSection>
       </SidebarHeader>
 
-      <SidebarBody>
+      <SidebarBody className='!pt-0'>
         {file && (
           <>
-            <SidebarSection>
-              <SidebarItem onClick={onConfigOpen}>
-                <Cog6ToothIcon />
-                <SidebarLabel>Configure charts</SidebarLabel>
-              </SidebarItem>
-            </SidebarSection>
+            <div className='sticky top-0 z-10 bg-zinc-900 -mx-4 px-4 pt-4 pb-2 shadow-[0_4px_8px_4px_#18181b]'>
+              <SidebarSection>
+                <SidebarItem onClick={onConfigOpen}>
+                  <Cog6ToothIcon />
+                  <SidebarLabel>Configure charts</SidebarLabel>
+                </SidebarItem>
+              </SidebarSection>
+              <SidebarSection className='max-lg:hidden'>
+                <SidebarHeading>Generated charts</SidebarHeading>
+                <InputGroup>
+                  <MagnifyingGlassIcon />
+                  <Input
+                    name='search'
+                    placeholder='Search…'
+                    aria-label='Search'
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                  />
+                </InputGroup>
+              </SidebarSection>
+            </div>
             <SidebarSection className='max-lg:hidden'>
-              <SidebarHeading>Generated charts</SidebarHeading>
-              <InputGroup>
-                <MagnifyingGlassIcon />
-                <Input
-                  name='search'
-                  placeholder='Search&hellip;'
-                  aria-label='Search'
-                />
-              </InputGroup>
-
-              <SidebarItem href='/events/3'>Six Fingers — DJ Set</SidebarItem>
+              {cards.length > 0 ? (
+                filteredCards.length > 0 ? (
+                  filteredCards.map(card => (
+                    <SidebarItem
+                      key={card.id}
+                      href='#'
+                      onClick={e => {
+                        e.preventDefault()
+                        document.getElementById(`card-${card.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                      }}
+                    >
+                      {card.label}
+                    </SidebarItem>
+                  ))
+                ) : (
+                  <p className='text-xs text-zinc-500 px-2 py-1'>No matches</p>
+                )
+              ) : null}
             </SidebarSection>
           </>
         )}
@@ -123,7 +154,7 @@ export default function AppSidebar({
             ) : (
               <BoltIcon className='size-4' />
             )}
-            Serve me some charts
+            Serve me
           </button>
         </SidebarFooter>
       )}

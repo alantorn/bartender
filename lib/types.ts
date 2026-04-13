@@ -146,6 +146,7 @@ export interface ChartConfig {
 export interface GeneratedCard {
   id:       string   // filename without .svg
   svgData:  string   // full SVG markup
+  label:    string   // human-readable title for sidebar
 }
 
 export interface GenerateResult {

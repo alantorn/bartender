@@ -40,6 +40,7 @@ export default function StudioPage() {
         loading={toolbarProps.loading}
         onGenerate={toolbarProps.onGenerate}
         onConfigOpen={() => setStylePanelOpen(v => !v)}
+        cards={sidebarProps.cards}
       />}
       secondSidebar={stylePanelOpen ? (
         <ChartStylePanel

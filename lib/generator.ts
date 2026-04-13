@@ -840,6 +840,10 @@ export function slug(str: string): string {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 }
 
+function cardLabel(tag: string, category: string, dialect?: string) {
+  return dialect ? `${category} — ${dialect}` : category
+}
+
 // ── Main generate function ────────────────────────────────────────────────────
 // Takes datasets+config, file buffers keyed by dataset id, returns GeneratedCard[].
 
@@ -858,7 +862,7 @@ export async function generateCards(
 
   // Prepend layout diagram as card 0 when enabled
   if (config.showLayoutDiagram) {
-    cards.push({ id: 'layout_diagram', svgData: buildTemplateDiagramSvg(config) })
+    cards.push({ id: 'layout_diagram', svgData: buildTemplateDiagramSvg(config), label: 'Layout Diagram' })
   }
 
   for (const dataset of datasets) {
@@ -886,7 +890,7 @@ export async function generateCards(
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
             })
-            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg })
+            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel) })
 
           } else if (chartType === 'box') {
             const chartSvg   = await specToSvg(buildBoxSpec(metricConfig, parseBoxCsv(csv, metric.modelDefs), dataset.yTitle))
@@ -894,7 +898,7 @@ export async function generateCards(
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
             })
-            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg })
+            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel) })
 
           } else if (splitBy === 'row') {
             // one card per data row — each shows all models for that row
@@ -906,7 +910,7 @@ export async function generateCards(
                 tag: dataset.tag, category: metricLabel, dialect: row.category,
                 count: row.count, fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
               })
-              cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(row.category)}_${cardIndex++}`, svgData: wrappedSvg })
+              cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(row.category)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel, row.category) })
             }
 
           } else if (splitBy === 'column') {
@@ -920,7 +924,7 @@ export async function generateCards(
                 tag: dataset.tag, category: metricLabel, dialect: colLabel,
                 fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
               })
-              cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(colLabel)}_${cardIndex++}`, svgData: wrappedSvg })
+              cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(colLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel, colLabel) })
             }
 
           } else {
@@ -931,7 +935,7 @@ export async function generateCards(
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
             })
-            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg })
+            cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel) })
           }
           continue
         }
@@ -964,6 +968,7 @@ export async function generateCards(
             cards.push({
               id:      `${dataset.id}_${slug(metricLabel)}_${slug(group)}_${cardIndex++}`,
               svgData: wrappedSvg,
+              label:   cardLabel(dataset.tag, metricLabel, group),
             })
           }
 
@@ -982,6 +987,7 @@ export async function generateCards(
             cards.push({
               id:      `${dataset.id}_${slug(metricLabel)}_${slug(group)}_${cardIndex++}`,
               svgData: wrappedSvg,
+              label:   cardLabel(dataset.tag, metricLabel, group),
             })
           }
         }
@@ -1008,7 +1014,7 @@ export async function generateCards(
         fixedWidth:  config.svgClusteredWidth,
         fixedHeight: config.svgClusteredHeight,
       })
-      cards.push({ id: `${dataset.id}_${cardIndex++}`, svgData: wrappedSvg })
+      cards.push({ id: `${dataset.id}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, dataset.sectionTitle ?? '') })
     }
   }
 

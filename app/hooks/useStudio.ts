@@ -156,6 +156,7 @@ export function useStudio() {
     onChange:              handleConfigChange,
     onSave:                handleSaveConfig,
     cardIds:               cards.map(c => c.id),
+    cards,
   }
 
   /** Props for the Toolbar. */

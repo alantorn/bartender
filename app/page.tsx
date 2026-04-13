@@ -51,7 +51,7 @@ export default function StudioPage() {
       navbar={<span className="text-sm font-medium text-white">Bartender</span>}
     >
       {/* ── Studio ───────────────────────────────────────────────── */}
-      <div className="flex flex-col h-full min-h-0">
+      <div className="relative flex flex-col h-full min-h-0">
         {/* Main canvas */}
         <div className="flex-1 overflow-y-auto p-6">
           <Preview {...previewProps} />

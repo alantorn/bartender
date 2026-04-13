@@ -1,9 +1,10 @@
 'use client'
 
+import { Input, InputGroup } from '@/components/input'
+import { MagnifyingGlassIcon } from '@heroicons/react/16/solid'
+
 import { useRef } from 'react'
-import {
-  Dropdown,
-} from '@/components/dropdown'
+import { Dropdown } from '@/components/dropdown'
 import {
   Sidebar,
   SidebarBody,
@@ -21,10 +22,6 @@ import {
   CheckCircleIcon,
   Cog6ToothIcon,
   DocumentArrowUpIcon,
-  HomeIcon,
-  MegaphoneIcon,
-  Square2StackIcon,
-  TicketIcon,
 } from '@heroicons/react/20/solid'
 
 interface Props {
@@ -34,6 +31,7 @@ interface Props {
   canGenerate: boolean
   loading: boolean
   onGenerate: () => void
+  onConfigOpen: () => void
 }
 
 export default function AppSidebar({
@@ -43,6 +41,7 @@ export default function AppSidebar({
   canGenerate,
   loading,
   onGenerate,
+  onConfigOpen,
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   return (
@@ -59,7 +58,9 @@ export default function AppSidebar({
             {inspecting ? (
               <ArrowPathIcon className='animate-spin' />
             ) : file ? (
-              <span className='flex items-center'><CheckCircleIcon className='size-5 text-green-400 fill-green-400' /></span>
+              <span className='flex items-center'>
+                <CheckCircleIcon className='size-5 text-green-400 fill-green-400' />
+              </span>
             ) : (
               <DocumentArrowUpIcon />
             )}
@@ -84,35 +85,23 @@ export default function AppSidebar({
         {file && (
           <>
             <SidebarSection>
-              <SidebarItem href='/'>
-                <HomeIcon />
-                <SidebarLabel>Home</SidebarLabel>
-              </SidebarItem>
-              <SidebarItem href='/events'>
-                <Square2StackIcon />
-                <SidebarLabel>Events</SidebarLabel>
-              </SidebarItem>
-              <SidebarItem href='/orders'>
-                <TicketIcon />
-                <SidebarLabel>Orders</SidebarLabel>
-              </SidebarItem>
-              <SidebarItem href='/settings'>
+              <SidebarItem onClick={onConfigOpen}>
                 <Cog6ToothIcon />
-                <SidebarLabel>Settings</SidebarLabel>
-              </SidebarItem>
-              <SidebarItem href='/broadcasts'>
-                <MegaphoneIcon />
-                <SidebarLabel>Broadcasts</SidebarLabel>
+                <SidebarLabel>Configure charts</SidebarLabel>
               </SidebarItem>
             </SidebarSection>
             <SidebarSection className='max-lg:hidden'>
-              <SidebarHeading>Upcoming Events</SidebarHeading>
-              <SidebarItem href='/events/1'>
-                Bear Hug: Live in Concert
-              </SidebarItem>
-              <SidebarItem href='/events/2'>Viking People</SidebarItem>
+              <SidebarHeading>Generated charts</SidebarHeading>
+              <InputGroup>
+                <MagnifyingGlassIcon />
+                <Input
+                  name='search'
+                  placeholder='Search&hellip;'
+                  aria-label='Search'
+                />
+              </InputGroup>
+
               <SidebarItem href='/events/3'>Six Fingers — DJ Set</SidebarItem>
-              <SidebarItem href='/events/4'>We All Look The Same</SidebarItem>
             </SidebarSection>
           </>
         )}

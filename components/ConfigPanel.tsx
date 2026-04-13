@@ -7,7 +7,7 @@ import { search, SearchQuery, setSearchQuery, findNext, findPrevious } from '@co
 import { EditorView } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
 import { oneDark } from '@codemirror/theme-one-dark'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, ChevronUpIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { ChevronLeftIcon, ChevronRightIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 const matchHighlight = Prec.highest(EditorView.theme({
   '.cm-searchMatch':          { backgroundColor: '#f59e0b66', outline: '1px solid #f59e0b', borderRadius: '2px' },
@@ -25,7 +25,6 @@ export default function ConfigPanel({
   onDatasetsJsonChange,
   datasetsError,
 }: ConfigPanelProps) {
-  const [open, setOpen] = useState(false)
   const [findText, setFindText] = useState('')
   const editorRef = useRef<ReactCodeMirrorRef>(null)
 
@@ -58,49 +57,29 @@ export default function ConfigPanel({
   }
 
   return (
-    <div
-      className={`shrink-0 flex flex-col overflow-hidden transition-all duration-200 ease-in-out ${open ? 'w-full border-t border-zinc-700 bg-zinc-900' : 'w-fit mr-4 ml-auto bg-zinc-800 rounded-t-xl'}`}
-      style={{ height: open ? '20rem' : '2.25rem' }}
-    >
-      {/* Toggle bar */}
-      <div className={`shrink-0 flex items-center px-3 gap-2 h-9 ${open ? 'border-b border-zinc-700' : ''}`}>
-
-        {open && (
-          <div className='flex items-center gap-1'>
-            <MagnifyingGlassIcon className='w-3.5 h-3.5 text-gray-500 shrink-0' />
-            <input
-              type='search'
-              placeholder='Find…'
-              value={findText}
-              onChange={e => handleFindChange(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); nav(e.shiftKey ? 'prev' : 'next') } }}
-              className='bg-white/10 border border-white/20 rounded px-1.5 py-0.5 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36'
-            />
-            {findText && (
-              <>
-                <span className='text-xs text-gray-500 shrink-0'>{matchCount}</span>
-                <button onClick={() => nav('prev')} disabled={!matchCount} className='rounded p-1 text-gray-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
-                  <ChevronLeftIcon className='w-3.5 h-3.5' />
-                </button>
-                <button onClick={() => nav('next')} disabled={!matchCount} className='rounded p-1 text-gray-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
-                  <ChevronRightIcon className='w-3.5 h-3.5' />
-                </button>
-              </>
-            )}
-          </div>
+    <div className='flex flex-col h-full min-h-0'>
+      {/* Search bar */}
+      <div className='shrink-0 flex items-center gap-1 px-2 py-1.5 border-b border-zinc-700'>
+        <MagnifyingGlassIcon className='w-3.5 h-3.5 text-zinc-500 shrink-0' />
+        <input
+          type='search'
+          placeholder='Find…'
+          value={findText}
+          onChange={e => handleFindChange(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); nav(e.shiftKey ? 'prev' : 'next') } }}
+          className='bg-white/10 border border-white/20 rounded px-1.5 py-0.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 flex-1 min-w-0'
+        />
+        {findText && (
+          <>
+            <span className='text-xs text-zinc-500 shrink-0'>{matchCount}</span>
+            <button onClick={() => nav('prev')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
+              <ChevronLeftIcon className='w-3.5 h-3.5' />
+            </button>
+            <button onClick={() => nav('next')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
+              <ChevronRightIcon className='w-3.5 h-3.5' />
+            </button>
+          </>
         )}
-
-        <div className='flex-1' />
-
-        <button
-          onClick={() => setOpen(v => !v)}
-          className='flex items-center gap-1.5 text-sm text-gray-400 hover:text-white transition-colors'
-        >
-          JSON config editor
-          {open
-            ? <ChevronDownIcon className='w-4 h-4' aria-hidden='true' />
-            : <ChevronUpIcon   className='w-4 h-4' aria-hidden='true' />}
-        </button>
       </div>
 
       {/* Editor */}

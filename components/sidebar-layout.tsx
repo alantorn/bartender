@@ -47,8 +47,9 @@ function MobileSidebar({ open, close, children }: React.PropsWithChildren<{ open
 export function SidebarLayout({
   navbar,
   sidebar,
+  secondSidebar,
   children,
-}: React.PropsWithChildren<{ navbar: React.ReactNode; sidebar: React.ReactNode }>) {
+}: React.PropsWithChildren<{ navbar: React.ReactNode; sidebar: React.ReactNode; secondSidebar?: React.ReactNode }>) {
   const [showSidebar, setShowSidebar] = useState(false)
 
   return (
@@ -57,6 +58,13 @@ export function SidebarLayout({
       <div className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col bg-zinc-900">
         {sidebar}
       </div>
+
+      {/* Second sidebar (e.g. style panel) — desktop only */}
+      {secondSidebar && (
+        <div className="hidden lg:flex lg:w-64 lg:shrink-0 lg:flex-col bg-zinc-900 border-l border-zinc-700/50">
+          {secondSidebar}
+        </div>
+      )}
 
       {/* Sidebar on mobile */}
       <MobileSidebar open={showSidebar} close={() => setShowSidebar(false)}>

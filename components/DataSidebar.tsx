@@ -33,19 +33,21 @@ export interface DataSidebarProps {
   config:                 ChartConfig | null
   onChange:               (patch: Partial<ChartConfig>) => void
   onSave:                 () => void
+  cardIds:                string[]
 }
 
 // ─── JSON helpers ─────────────────────────────────────────────────────────────
 
-function parseMetrics(json: string): { label: string; chartType: ChartType; pivot: boolean; splitBy: SplitBy }[] {
+function parseMetrics(json: string): { label: string; chartType: ChartType; pivot: boolean; splitBy: SplitBy; showClusterLabels: boolean }[] {
   try {
     const datasets = JSON.parse(json)
     if (!Array.isArray(datasets) || !datasets[0]?.metrics) return []
-    return (datasets[0].metrics as { label: string; chartType?: ChartType; pivot?: boolean; splitBy?: SplitBy }[]).map(m => ({
-      label:     m.label,
-      chartType: m.chartType ?? 'bar',
-      pivot:     m.pivot ?? false,
-      splitBy:   m.splitBy ?? 'none',
+    return (datasets[0].metrics as { label: string; chartType?: ChartType; pivot?: boolean; splitBy?: SplitBy; showClusterLabels?: boolean }[]).map(m => ({
+      label:             m.label,
+      chartType:         m.chartType ?? 'bar',
+      pivot:             m.pivot ?? false,
+      splitBy:           m.splitBy ?? 'none',
+      showClusterLabels: m.showClusterLabels ?? true,
     }))
   } catch { return [] }
 }
@@ -112,6 +114,11 @@ function patchSeriesColor(json: string, col: string, colorKey: 'bg' | 'border', 
   } catch { return json }
 }
 
+// ─── slug (mirrors generator.ts) ────────────────────────────────────────────
+function slug(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+}
+
 // ─── component ───────────────────────────────────────────────────────────────
 
 export default function DataSidebar({
@@ -126,6 +133,7 @@ export default function DataSidebar({
   config,
   onChange,
   onSave,
+  cardIds,
 }: DataSidebarProps) {
   const [tab, setTab] = useState<Tab>('sheets')
   const metrics      = parseMetrics(datasetsJson)
@@ -185,7 +193,21 @@ export default function DataSidebar({
               <div className="flex flex-col gap-1">
                 {metrics.map(m => (
                   <div key={m.label} className="flex flex-col gap-0.5 py-1 border-b border-white/5 last:border-0">
-                    <span className="text-xs text-gray-300 truncate" title={m.label}>{m.label}</span>
+                    <div className="flex items-center gap-1">
+                      {(() => {
+                        const metricSlug = slug(m.label)
+                        const firstCardId = cardIds.find(id => id.includes(metricSlug))
+                        return firstCardId ? (
+                          <button
+                            title="Scroll to preview"
+                            onClick={() => document.getElementById(`card-${firstCardId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                            className="flex-1 text-left text-xs text-gray-300 truncate hover:text-indigo-400 transition-colors"
+                          >{m.label}</button>
+                        ) : (
+                          <span className="flex-1 text-xs text-gray-300 truncate" title={m.label}>{m.label}</span>
+                        )
+                      })()}
+                    </div>
                     {m.chartType !== 'box' && (
                     <div className="flex items-center gap-1">
                       <select
@@ -218,6 +240,17 @@ export default function DataSidebar({
                             <option key={s.value} value={s.value} className="bg-gray-800">{s.label}</option>
                           ))}
                         </select>
+                      )}
+                      {m.chartType === 'bar' && (
+                        <label className="flex items-center gap-1 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={m.showClusterLabels}
+                            onChange={e => onDatasetsJsonChange(patchMetricField(datasetsJson, m.label, 'showClusterLabels', e.target.checked))}
+                            className="accent-indigo-400 cursor-pointer"
+                          />
+                          <span className="text-xs text-gray-400">title</span>
+                        </label>
                       )}
                     </div>
                     )}

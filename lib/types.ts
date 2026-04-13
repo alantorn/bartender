@@ -16,8 +16,9 @@ export interface Metric {
   fileKey:    string              // sheet name — used directly, no pattern substitution
   chartType?: 'bar' | 'box' | 'scatter' // auto-detected during inspect; default 'bar'
   modelDefs?: ModelDef[]         // column definitions for this sheet
-  pivot?:     boolean            // bar only: swap cluster/sub-bar axes (rows ↔ columns)
-  splitBy?:   'none' | 'row' | 'column' // bar only: emit one card per row or per column
+  pivot?:             boolean            // bar only: swap cluster/sub-bar axes (rows ↔ columns)
+  splitBy?:           'none' | 'row' | 'column' // bar only: emit one card per row or per column
+  showClusterLabels?: boolean            // bar only: show/hide cluster (category) name labels
 }
 
 export interface ASRDataset {
@@ -106,6 +107,7 @@ export interface ChartConfig {
   showYTitle:        boolean
   showYTickLabels:   boolean
   showXDomain:       boolean
+  showClusterLabels: boolean
   showN:             boolean
   nLabelSize:        number
   nLabelColor:       string

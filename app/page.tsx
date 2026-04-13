@@ -169,6 +169,7 @@ export default function StudioPage() {
     config:                mergedConfig,
     onChange:              handleConfigChange,
     onSave:                handleSaveConfig,
+    cardIds:               cards.map(c => c.id),
   }
 
   return (

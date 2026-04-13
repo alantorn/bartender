@@ -169,18 +169,29 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
   // model directly on x so we don't get a phantom "category" cluster group.
   const flatMode = !pivot && rows.length === 1
 
+  // Single-series mode: one model column, multiple rows → color by category so
+  // each bar gets a distinct color instead of every bar sharing AUTO_COLORS[0].
+  const singleSeries = !pivot && modelDefs.length === 1
+
   // Build color scales keyed by model name so colors are reliably bound by name,
   // not by data-embedded values (which require scale:null and are fragile in Vega-Lite 6).
   // In pivot mode, the 'model' field holds row.category; colors cycle over rows.
-  const colorScaleDomain: string[] = pivot
+  // In single-series mode, colors cycle over categories (rows) instead of models.
+  const colorScaleDomain: string[] = singleSeries
     ? rows.map(r => r.category)
-    : modelDefs.map(d => d.label ?? d.col)
-  const colorBgRange: string[] = pivot
+    : pivot
+      ? rows.map(r => r.category)
+      : modelDefs.map(d => d.label ?? d.col)
+  const colorBgRange: string[] = singleSeries
     ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].bg)
-    : modelDefs.map((d, mi) => (d.color ?? AUTO_COLORS[mi % AUTO_COLORS.length]).bg)
-  const colorBorderRange: string[] = pivot
+    : pivot
+      ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].bg)
+      : modelDefs.map((d, mi) => (d.color ?? AUTO_COLORS[mi % AUTO_COLORS.length]).bg)
+  const colorBorderRange: string[] = singleSeries
     ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].border)
-    : modelDefs.map((d, mi) => (d.color ?? AUTO_COLORS[mi % AUTO_COLORS.length]).border)
+    : pivot
+      ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].border)
+      : modelDefs.map((d, mi) => (d.color ?? AUTO_COLORS[mi % AUTO_COLORS.length]).border)
 
   const values: object[] = []
   for (let ri = 0; ri < rows.length; ri++) {
@@ -188,10 +199,15 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
     for (let mi = 0; mi < modelDefs.length; mi++) {
       const { col, label } = modelDefs[mi]
       const modelName = pivot ? row.category : (label ?? col)
-      const idx = colorScaleDomain.indexOf(modelName)
+      // colorKey drives the Vega-Lite color scale:
+      //   single-series → category (so each bar is distinct)
+      //   multi-series / pivot → model name (as before)
+      const colorKey = singleSeries ? row.category : modelName
+      const idx = colorScaleDomain.indexOf(colorKey)
       values.push({
         category:   pivot ? (label ?? col) : row.category,
         model:      modelName,
+        colorKey,
         labelColor: colorBorderRange[idx >= 0 ? idx : mi],
         wer:        row.values[col] ?? 0,
       })
@@ -206,7 +222,7 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
     : C.dataLabelDecimals
 
   const xAxisStyle = {
-    labels:        !hideXLabels,
+    labels:        !hideXLabels && C.showClusterLabels,
     labelColor:    C.axisTickColor,
     labelFontSize: C.axisTickSize,
     labelFont:     C.fontSans,
@@ -275,7 +291,7 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
           x:       xEnc,
           ...(xOffsetE ? { xOffset: xOffsetE } : {}),
           y:       { field: 'wer', type: 'quantitative', scale: { zero: true }, axis: yAxis(C, yTitle) },
-          color:   { field: 'model', type: 'nominal', scale: { domain: colorScaleDomain, range: colorBgRange }, legend: null },
+          color:   { field: 'colorKey', type: 'nominal', scale: { domain: colorScaleDomain, range: colorBgRange }, legend: null },
         },
       },
       {
@@ -688,13 +704,16 @@ export async function generateCards(
 
         if (metric.modelDefs) {
           // ── Direct mode: fileKey IS the sheet name ─────────────────────────
-          const csv      = xlsxSheetToCsv(buf, fileKey)
-          const pivot    = metric.pivot ?? false
-          const splitBy  = metric.splitBy ?? 'none'
+          const csv         = xlsxSheetToCsv(buf, fileKey)
+          const pivot       = metric.pivot ?? false
+          const splitBy     = metric.splitBy ?? 'none'
+          const metricConfig = metric.showClusterLabels !== undefined
+            ? { ...config, showClusterLabels: metric.showClusterLabels }
+            : config
 
           if (chartType === 'scatter') {
             const parsed     = parseASRCsv(csv, metric.modelDefs)
-            const chartSvg   = await specToSvg(buildScatterSpec(config, parsed, dataset.yTitle, metric.pivot ?? false))
+            const chartSvg   = await specToSvg(buildScatterSpec(metricConfig, parsed, dataset.yTitle, metric.pivot ?? false))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
@@ -702,7 +721,7 @@ export async function generateCards(
             cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg })
 
           } else if (chartType === 'box') {
-            const chartSvg   = await specToSvg(buildBoxSpec(config, parseBoxCsv(csv, metric.modelDefs), dataset.yTitle))
+            const chartSvg   = await specToSvg(buildBoxSpec(metricConfig, parseBoxCsv(csv, metric.modelDefs), dataset.yTitle))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
@@ -713,7 +732,7 @@ export async function generateCards(
             // one card per data row — each shows all models for that row
             const parsed = parseASRCsv(csv, metric.modelDefs)
             for (const row of parsed.rows) {
-              const spec       = buildASRSpec(config, { modelDefs: parsed.modelDefs, rows: [row] }, dataset.yTitle, false, true)
+              const spec       = buildASRSpec(metricConfig, { modelDefs: parsed.modelDefs, rows: [row] }, dataset.yTitle, false, true)
               const chartSvg   = await specToSvg(spec)
               const wrappedSvg = wrapAsSvg(config, chartSvg, {
                 tag: dataset.tag, category: metricLabel, dialect: row.category,
@@ -727,7 +746,7 @@ export async function generateCards(
             const parsed = parseASRCsv(csv, metric.modelDefs)
             for (const def of parsed.modelDefs) {
               const colLabel   = def.label ?? def.col
-              const spec       = buildASRSpec(config, { modelDefs: [def], rows: parsed.rows }, dataset.yTitle)
+              const spec       = buildASRSpec(metricConfig, { modelDefs: [def], rows: parsed.rows }, dataset.yTitle)
               const chartSvg   = await specToSvg(spec)
               const wrappedSvg = wrapAsSvg(config, chartSvg, {
                 tag: dataset.tag, category: metricLabel, dialect: colLabel,
@@ -739,7 +758,7 @@ export async function generateCards(
           } else {
             // one card, optionally pivoted
             const parsed     = parseASRCsv(csv, metric.modelDefs)
-            const chartSvg   = await specToSvg(buildASRSpec(config, parsed, dataset.yTitle, pivot))
+            const chartSvg   = await specToSvg(buildASRSpec(metricConfig, parsed, dataset.yTitle, pivot))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,

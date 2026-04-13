@@ -63,8 +63,9 @@ export const DEFAULT_CONFIG: ChartConfig = {
   // Axes
   showYTitle:      true,
   showYTickLabels: true,
-  showXDomain:     false,
-  showN:           false,
+  showXDomain:       false,
+  showClusterLabels: true,
+  showN:             false,
   nLabelSize:      11,
   nLabelColor:     '#aeaec6',
   axisTickColor:   '#a0a0b8',

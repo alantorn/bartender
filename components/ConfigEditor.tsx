@@ -68,8 +68,9 @@ const SECTIONS: Section[] = [
     fields: [
       { key: 'showYTitle',      label: 'Show Y title',      type: 'toggle' },
       { key: 'showYTickLabels', label: 'Show tick labels',  type: 'toggle' },
-      { key: 'showXDomain',     label: 'Show X axis line',  type: 'toggle' },
-      { key: 'showN',           label: 'Show n= count',     type: 'toggle' },
+      { key: 'showXDomain',       label: 'Show X axis line',    type: 'toggle' },
+      { key: 'showClusterLabels', label: 'Show cluster names',  type: 'toggle' },
+      { key: 'showN',             label: 'Show n= count',        type: 'toggle' },
       { key: 'nLabelSize',      label: 'n= font size',      type: 'number', min: 8, step: 1 },
       { key: 'nLabelColor',     label: 'n= color',          type: 'color' },
       { key: 'axisTickSize',    label: 'Tick font size',    type: 'number', min: 8, step: 1 },

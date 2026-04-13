@@ -46,7 +46,7 @@ export default function Preview({ cards, loading, error }: Props) {
   return (
     <div className="flex flex-wrap gap-6">
       {cards.map(card => (
-        <div key={card.id} className="border border-neutral-200 rounded-lg overflow-hidden shadow-sm">
+        <div key={card.id} id={`card-${card.id}`} className="border border-neutral-200 rounded-lg overflow-hidden shadow-sm">
           <div
             dangerouslySetInnerHTML={{ __html: card.svgData }}
           />

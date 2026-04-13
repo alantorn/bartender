@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import type { ChartConfig } from '@/lib/types'
-import { XMarkIcon } from '@heroicons/react/20/solid'
+import { XMarkIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/20/solid'
 
 interface Props {
   config: ChartConfig | null
@@ -24,18 +24,40 @@ function Field({
   step?: number
   onChange: (v: number) => void
 }) {
+  function clamp(v: number) {
+    if (min !== undefined && v < min) return min
+    if (max !== undefined && v > max) return max
+    return v
+  }
+
   return (
     <div className="flex items-center gap-2">
       <span className="flex-1 text-xs text-zinc-400 leading-tight">{label}</span>
-      <input
-        type="number"
-        value={value}
-        min={min}
-        max={max}
-        step={step}
-        onChange={e => onChange(Number(e.target.value))}
-        className="w-16 bg-zinc-800 border border-zinc-700 rounded px-1.5 py-0.5 text-xs text-zinc-100 text-right focus:outline-none focus:ring-1 focus:ring-indigo-500"
-      />
+      <div className="flex items-center rounded border border-zinc-700 bg-zinc-800 overflow-hidden">
+        <button
+          onClick={() => onChange(clamp(value - step))}
+          disabled={min !== undefined && value <= min}
+          className="px-1.5 py-1 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronLeftIcon className="w-3 h-3" />
+        </button>
+        <input
+          type="number"
+          value={value}
+          min={min}
+          max={max}
+          step={step}
+          onChange={e => onChange(clamp(Number(e.target.value)))}
+          className="w-12 bg-transparent px-1 py-0.5 text-xs text-zinc-100 text-center focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        />
+        <button
+          onClick={() => onChange(clamp(value + step))}
+          disabled={max !== undefined && value >= max}
+          className="px-1.5 py-1 text-zinc-400 hover:text-white hover:bg-zinc-700 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+        >
+          <ChevronRightIcon className="w-3 h-3" />
+        </button>
+      </div>
     </div>
   )
 }

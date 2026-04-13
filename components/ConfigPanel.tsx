@@ -75,16 +75,6 @@ export default function ConfigPanel({
     }
   }, [])
 
-  // Animate fullscreen expand/collapse (assumes already open)
-  const animateFullscreen = useCallback((fs: boolean, containerH: number) => {
-    tlRef.current?.kill()
-    gsap.to(panelRef.current, {
-      height: fs ? containerH : PANEL_HEIGHT,
-      duration: 0.4,
-      ease: 'power3.inOut',
-    })
-  }, [])
-
   const containerRef = useRef<HTMLDivElement>(null)
 
   function open() {
@@ -99,9 +89,13 @@ export default function ConfigPanel({
   function toggleFullscreen() {
     const container = containerRef.current?.parentElement
     const h = container?.getBoundingClientRect().height ?? window.innerHeight
-    setIsFullscreen(v => {
-      animateFullscreen(!v, h)
-      return !v
+    const next = !isFullscreen
+    setIsFullscreen(next)
+    tlRef.current?.kill()
+    gsap.to(panelRef.current, {
+      height: next ? h : PANEL_HEIGHT,
+      duration: 0.4,
+      ease: 'power3.inOut',
     })
   }
 
@@ -146,7 +140,7 @@ export default function ConfigPanel({
   }
 
   return (
-    <div ref={containerRef} className={`w-full ${isFullscreen ? 'absolute inset-0 z-10' : 'shrink-0'}`}>
+    <div ref={containerRef} className='w-full shrink-0'>
       {/* Tab */}
       <div ref={tabRef} className='flex justify-end overflow-hidden'>
         <button
@@ -160,7 +154,7 @@ export default function ConfigPanel({
       {/* Panel */}
       <div
         ref={panelRef}
-        className={`overflow-hidden bg-zinc-900 ${isFullscreen ? 'absolute inset-0' : 'border-t border-zinc-700'}`}
+        className='overflow-hidden bg-zinc-900 border-t border-zinc-700'
         style={{ height: 0 }}
       >
         <div className='flex flex-col h-full'>

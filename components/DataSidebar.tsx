@@ -278,7 +278,7 @@ export default function DataSidebar({
 
       {/* ── Style tab ── */}
       {tab === 'style' && (
-        <div className="flex flex-col flex-1 overflow-y-auto px-4 py-4 gap-6">
+        <div className="flex columns-1 flex-col flex-1 overflow-y-auto px-4 py-4 gap-6">
 
           {/* Series colors */}
           {metricColors.length > 0 && (

@@ -285,6 +285,9 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
         ? { step: C.clusterStep }
         : Math.max(C.chartWidth, numCategories * numModels * (C.barWidth + 4))
 
+  const dataMax = Math.max(...values.map(v => (v as { wer: number }).wer), 0)
+  const yDomainMax = dataMax > 0 ? dataMax * (1 + C.yScalePadding / 100) : 1
+
   return {
     $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
     width:      specWidth,
@@ -299,7 +302,7 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
         encoding: {
           x:       xEnc,
           ...(xOffsetE ? { xOffset: xOffsetE } : {}),
-          y:       { field: 'wer', type: 'quantitative', scale: { zero: true }, axis: yAxis(C, yTitle) },
+          y:       { field: 'wer', type: 'quantitative', scale: { zero: true, domainMax: yDomainMax }, axis: yAxis(C, yTitle) },
           color:   { field: 'colorKey', type: 'nominal', scale: { domain: colorScaleDomain, range: colorBgRange }, legend: null },
         },
       },
@@ -578,6 +581,9 @@ export function buildClusteredSpec(
     })
   })
 
+  const dataMax = Math.max(...values.map(v => (v as { score: number }).score), 0)
+  const yDomainMax = dataMax > 0 ? dataMax * (1 + C.yScalePadding / 100) : 1
+
   return {
     $schema:    'https://vega.github.io/schema/vega-lite/v5.json',
     width:      C.clusteredChartWidth,
@@ -592,7 +598,7 @@ export function buildClusteredSpec(
         encoding: {
           x:       { field: 'category', type: 'nominal', axis: { labelColor: C.axisTickColor, labelFontSize: C.axisTickSize, labelFont: C.fontSans, ticks: false, domain: C.showXDomain, domainColor: C.axisTickColor, title: null, grid: false }, scale: { paddingInner: C.clusterPaddingInner, ...(C.clusterStep != null ? { step: C.clusterStep } : {}) } },
           xOffset: { field: 'model',    type: 'nominal', scale: { paddingInner: C.barPaddingInner } },
-          y:       { field: 'score',    type: 'quantitative', scale: { zero: true }, axis: yAxis(C, yTitle) },
+          y:       { field: 'score',    type: 'quantitative', scale: { zero: true, domainMax: yDomainMax }, axis: yAxis(C, yTitle) },
           color:   { field: 'barColor', type: 'nominal', scale: null, legend: null },
         },
       },

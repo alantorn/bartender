@@ -1,3 +1,5 @@
 {
-  "clusteredChartWidth": 200
+  "paddingLeft": 32,
+  "paddingRight": 32,
+  "dataLabelSize": 8
 }

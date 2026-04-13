@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { ChartConfig } from '@/lib/types'
 
 // ─── field descriptor ────────────────────────────────────────────────────────
@@ -88,6 +89,7 @@ const SECTIONS: Section[] = [
       { key: 'axisTickWeight',       label: 'Tick font weight',      type: 'text' },
       { key: 'axisTickColor',        label: 'Tick color',            type: 'color' },
       { key: 'yAxisLabelPadding',    label: 'Y axis label padding',  type: 'number', min: 0, step: 1 },
+      { key: 'yScalePadding',          label: 'Y headroom % above max', type: 'number', min: 0, step: 1 },
       { key: 'yTitleSize',        label: 'Y title font size',   type: 'number', min: 8, step: 1 },
       { key: 'yTitleWeight',      label: 'Y title font weight', type: 'text' },
       { key: 'yTitleColor',       label: 'Y title color',       type: 'color' },
@@ -155,14 +157,31 @@ export default function ConfigEditor({ config, onChange }: Props) {
     onChange({ [key]: value } as Partial<ChartConfig>)
   }
 
+  const [filter, setFilter] = useState('')
+  const q = filter.trim().toLowerCase()
+  const filteredSections = q
+    ? SECTIONS.flatMap(sec => {
+        const fields = sec.fields.filter(f => f.label.toLowerCase().includes(q))
+        if (!fields.length && !sec.title.toLowerCase().includes(q)) return []
+        return [{ ...sec, fields: fields.length ? fields : sec.fields }]
+      })
+    : SECTIONS
+
   return (
     <div className="space-y-6 text-sm">
-      {SECTIONS.map(sec => (
+      <input
+        type="search"
+        placeholder="Filter settings…"
+        value={filter}
+        onChange={e => setFilter(e.target.value)}
+        className="w-full bg-white/10 border border-white/20 rounded px-2 py-1 text-xs text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+      />
+      {filteredSections.map(sec => (
         <section key={sec.title}>
           <h3 className="font-semibold text-neutral-500 uppercase tracking-wide text-xs mb-2 pb-1 border-b border-neutral-200">
             {sec.title}
           </h3>
-          <div className="grid grid-cols-2 gap-x-4 gap-y-2">
+          <div className="grid grid-cols-1 gap-y-2">
             {sec.fields.map(({ key, label, type, step, min, max, options }) => {
               const val = config[key]
               return (

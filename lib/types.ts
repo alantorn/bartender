@@ -123,6 +123,7 @@ export interface ChartConfig {
   axisTickSize:      number
   axisTickWeight:    string
   yAxisLabelPadding: number
+  yScalePadding:     number
   yTitleColor:       string
   yTitleSize:        number
   yTitleWeight:      string

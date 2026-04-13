@@ -80,6 +80,7 @@ export const DEFAULT_CONFIG: ChartConfig = {
   axisTickSize:     16,
   axisTickWeight:  '400',
   yAxisLabelPadding: 8,
+  yScalePadding:     15,
   yTitleColor:     '#505065',
   yTitleSize:       16,
   yTitleWeight:    '400',

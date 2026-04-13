@@ -1,6 +1,7 @@
 'use client'
 
-import { useRef, useState, useMemo } from 'react'
+import { useRef, useState, useMemo, useEffect, useCallback } from 'react'
+import gsap from 'gsap'
 import CodeMirror, { type ReactCodeMirrorRef } from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import {
@@ -36,6 +37,8 @@ const matchHighlight = Prec.highest(
   }),
 )
 
+const PANEL_HEIGHT = 320 // 20rem in px
+
 export interface ConfigPanelProps {
   datasetsJson: string
   onDatasetsJsonChange: (v: string) => void
@@ -47,17 +50,73 @@ export default function ConfigPanel({
   onDatasetsJsonChange,
   datasetsError,
 }: ConfigPanelProps) {
-  const [open, setOpen] = useState(false)
-  const [fullscreen, setFullscreen] = useState(false)
+  const [isFullscreen, setIsFullscreen] = useState(false)
   const [findText, setFindText] = useState('')
   const editorRef = useRef<ReactCodeMirrorRef>(null)
+
+  const tabRef    = useRef<HTMLDivElement>(null)
+  const panelRef  = useRef<HTMLDivElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  const tlRef     = useRef<gsap.core.Timeline | null>(null)
+
+  // Animate open/close
+  const animateOpen = useCallback((open: boolean) => {
+    tlRef.current?.kill()
+    const tl = gsap.timeline({ defaults: { ease: 'power3.inOut' } })
+    tlRef.current = tl
+    if (open) {
+      tl.to(tabRef.current,    { height: 0, opacity: 0, duration: 0.18 }, 0)
+      tl.to(panelRef.current,  { height: PANEL_HEIGHT, duration: 0.35 }, 0.05)
+      tl.to(headerRef.current, { opacity: 1, duration: 0.2 }, 0.25)
+    } else {
+      tl.to(headerRef.current, { opacity: 0, duration: 0.1 }, 0)
+      tl.to(panelRef.current,  { height: 0, duration: 0.3 }, 0.08)
+      tl.to(tabRef.current,    { height: 36, opacity: 1, duration: 0.2 }, 0.2)
+    }
+  }, [])
+
+  // Animate fullscreen expand/collapse (assumes already open)
+  const animateFullscreen = useCallback((fs: boolean, containerH: number) => {
+    tlRef.current?.kill()
+    gsap.to(panelRef.current, {
+      height: fs ? containerH : PANEL_HEIGHT,
+      duration: 0.4,
+      ease: 'power3.inOut',
+    })
+  }, [])
+
+  const containerRef = useRef<HTMLDivElement>(null)
+
+  function open() {
+    animateOpen(true)
+  }
+
+  function close() {
+    setIsFullscreen(false)
+    animateOpen(false)
+  }
+
+  function toggleFullscreen() {
+    const container = containerRef.current?.parentElement
+    const h = container?.getBoundingClientRect().height ?? window.innerHeight
+    setIsFullscreen(v => {
+      animateFullscreen(!v, h)
+      return !v
+    })
+  }
+
+  // Set initial DOM state (no animation on mount)
+  useEffect(() => {
+    gsap.set(tabRef.current,    { height: 36, opacity: 1 })
+    gsap.set(panelRef.current,  { height: 0 })
+    gsap.set(headerRef.current, { opacity: 0 })
+  }, [])
 
   const matchCount = useMemo(() => {
     if (!findText) return 0
     const lower = datasetsJson.toLowerCase()
     const needle = findText.toLowerCase()
-    let count = 0,
-      pos = 0
+    let count = 0, pos = 0
     while (true) {
       const idx = lower.indexOf(needle, pos)
       if (idx === -1) break
@@ -87,33 +146,33 @@ export default function ConfigPanel({
   }
 
   return (
-    <div className={`w-full ${fullscreen ? 'absolute inset-0 z-10' : 'shrink-0'}`}>
-      {/* Tab — protrudes above panel, fades out when open */}
-      <div
-        className='flex justify-end overflow-hidden transition-[height,opacity] duration-150 ease-in-out'
-        style={{ height: open ? '0' : '2.25rem', opacity: open ? 0 : 1 }}
-      >
+    <div ref={containerRef} className={`w-full ${isFullscreen ? 'absolute inset-0 z-10' : 'shrink-0'}`}>
+      {/* Tab */}
+      <div ref={tabRef} className='flex justify-end overflow-hidden'>
         <button
-          onClick={() => setOpen(true)}
+          onClick={open}
           className='h-9 px-4 flex items-center gap-1.5 bg-zinc-800 rounded-t-xl text-sm text-zinc-400 hover:text-white transition-colors'
         >
           JSON config editor
         </button>
       </div>
 
-      {/* Panel — slides up from below */}
+      {/* Panel */}
       <div
-        className={`overflow-hidden border-t border-zinc-700 bg-zinc-900 transition-[height] duration-250 ease-in-out ${fullscreen ? 'absolute inset-0 border-t-0' : ''}`}
-        style={{ height: fullscreen ? '100%' : (open ? '20rem' : '0') }}
+        ref={panelRef}
+        className={`overflow-hidden bg-zinc-900 ${isFullscreen ? 'absolute inset-0' : 'border-t border-zinc-700'}`}
+        style={{ height: 0 }}
       >
         <div className='flex flex-col h-full'>
-          {/* Header bar — fades in, mirrors tab label; clicking the bar (not buttons) closes */}
+          {/* Header bar */}
           <div
+            ref={headerRef}
             role='button'
             tabIndex={0}
-            onClick={() => fullscreen ? setFullscreen(false) : setOpen(false)}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') fullscreen ? setFullscreen(false) : setOpen(false) }}
-            className={`shrink-0 flex items-center px-3 gap-2 h-9 border-b border-zinc-700 cursor-pointer hover:bg-zinc-800/50 transition-[opacity,background-color] duration-200 ${open ? 'opacity-100 delay-75' : 'opacity-0'}`}
+            onClick={() => isFullscreen ? toggleFullscreen() : close()}
+            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { if (isFullscreen) toggleFullscreen(); else close() } }}
+            className='shrink-0 flex items-center px-3 gap-2 h-9 border-b border-zinc-700 cursor-pointer hover:bg-zinc-800/50 transition-colors'
+            style={{ opacity: 0 }}
           >
             <div className='flex items-center gap-1 ml-1' onClick={e => e.stopPropagation()}>
               <MagnifyingGlassIcon className='w-3.5 h-3.5 text-zinc-500 shrink-0' />
@@ -125,43 +184,26 @@ export default function ConfigPanel({
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); nav(e.shiftKey ? 'prev' : 'next') } }}
                 className='bg-zinc-950 border border-white/20 rounded px-1.5 py-0.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36'
               />
-
               {findText && (
                 <>
-                  <span className='text-xs text-zinc-500 shrink-0'>
-                    {matchCount}
-                  </span>
-
-                  <button
-                    onClick={() => nav('prev')}
-                    disabled={!matchCount}
-                    className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'
-                  >
+                  <span className='text-xs text-zinc-500 shrink-0'>{matchCount}</span>
+                  <button onClick={() => nav('prev')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
                     <ChevronLeftIcon className='w-3.5 h-3.5' />
                   </button>
-
-                  <button
-                    onClick={() => nav('next')}
-                    disabled={!matchCount}
-                    className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'
-                  >
+                  <button onClick={() => nav('next')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
                     <ChevronRightIcon className='w-3.5 h-3.5' />
                   </button>
-
-                  <span className='text-sm text-zinc-400 whitespace-nowrap'>
-                    JSON config editor
-                  </span>
                 </>
               )}
             </div>
             <div className='flex-1' />
             <div className='flex items-center gap-0.5' onClick={e => e.stopPropagation()}>
               <button
-                onClick={() => setFullscreen(v => !v)}
-                title={fullscreen ? 'Restore' : 'Expand to fullscreen'}
+                onClick={toggleFullscreen}
+                title={isFullscreen ? 'Restore' : 'Expand to fullscreen'}
                 className='rounded p-1 text-zinc-500 hover:text-white hover:bg-white/10 transition-colors'
               >
-                <ChevronUpIcon className={`w-4 h-4 transition-transform duration-200 ${fullscreen ? 'rotate-180' : ''}`} />
+                <ChevronUpIcon className={`w-4 h-4 transition-transform duration-200 ${isFullscreen ? 'rotate-180' : ''}`} />
               </button>
             </div>
           </div>
@@ -196,3 +238,4 @@ export default function ConfigPanel({
     </div>
   )
 }
+

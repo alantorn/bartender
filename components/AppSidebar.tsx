@@ -23,6 +23,7 @@ import {
   Cog6ToothIcon,
   DocumentArrowUpIcon,
 } from '@heroicons/react/20/solid'
+import { Divider } from './divider'
 
 interface Props {
   file: File | null
@@ -101,7 +102,7 @@ export default function AppSidebar({
                 </SidebarItem>
               </SidebarSection>
               <SidebarSection className='max-lg:hidden'>
-                <SidebarHeading>Generated charts</SidebarHeading>
+                <Divider className='mt-5 mb-5'/>
                 <InputGroup>
                   <MagnifyingGlassIcon />
                   <Input

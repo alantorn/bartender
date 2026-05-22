@@ -138,6 +138,7 @@ function yAxis(C: ChartConfig, title: string) {
     labelFont:       C.fontMono,
     labelPadding:    C.yAxisLabelPadding,
     tickColor:       C.axisTickColor,
+    domain:          C.showYDomain,
     domainColor:     C.axisTickColor,
     title:           C.showYTitle ? title : null,
     titleColor:      C.yTitleColor,
@@ -163,6 +164,10 @@ export const AUTO_COLORS: SeriesColor[] = [
   { bg: 'rgba(210,210,210,0.82)', border: '#505050' },
 ]
 
+function resolveColor(C: ChartConfig, name: string, fallbackIndex: number): SeriesColor {
+  return C.modelColors[name] ?? AUTO_COLORS[fallbackIndex % AUTO_COLORS.length]
+}
+
 export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, pivot = false, hideXLabels = false) {
   const { modelDefs, rows } = parsed
 
@@ -184,15 +189,15 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
       ? rows.map(r => r.category)
       : modelDefs.map(d => d.label ?? d.col)
   const colorBgRange: string[] = singleSeries
-    ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].bg)
+    ? rows.map((r, ri) => resolveColor(C, r.category, ri).bg)
     : pivot
-      ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].bg)
-      : modelDefs.map((d, mi) => (d.color ?? AUTO_COLORS[mi % AUTO_COLORS.length]).bg)
+      ? rows.map((r, ri) => resolveColor(C, r.category, ri).bg)
+      : modelDefs.map((d, mi) => (d.color ?? resolveColor(C, d.label ?? d.col, mi)).bg)
   const colorBorderRange: string[] = singleSeries
-    ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].border)
+    ? rows.map((r, ri) => resolveColor(C, r.category, ri).border)
     : pivot
-      ? rows.map((_, ri) => AUTO_COLORS[ri % AUTO_COLORS.length].border)
-      : modelDefs.map((d, mi) => (d.color ?? AUTO_COLORS[mi % AUTO_COLORS.length]).border)
+      ? rows.map((r, ri) => resolveColor(C, r.category, ri).border)
+      : modelDefs.map((d, mi) => (d.color ?? resolveColor(C, d.label ?? d.col, mi)).border)
 
   const values: object[] = []
   for (let ri = 0; ri < rows.length; ri++) {
@@ -228,7 +233,7 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
     labelFontSize: C.axisTickSize,
     labelFont:     C.fontSans,
     ticks:         false,
-    domain:        true,
+    domain:        C.showXDomain,
     domainColor:   C.axisTickColor,
     title:         null,
     grid:          false,
@@ -316,13 +321,13 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
         },
       },
       {
-        mark: { type: 'text', clip: false, angle: 90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
+        mark: { type: 'text', clip: true, angle: -90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
         encoding: {
           x:       xTextEnc,
           ...(xTextOff ? { xOffset: xTextOff } : {}),
           y:       { value: C.chartHeight },
           text:    { field: 'model' },
-          color:   { field: 'labelColor', type: 'nominal', scale: null, legend: null },
+          color:   { value: C.axisTickColor },
         },
       },
       // Bottom axis domain line (replaces domain removed from top-oriented axis)
@@ -392,16 +397,20 @@ export function parseBoxCsv(csv: string, modelDefs?: ModelDef[]): BoxRow[] {
 }
 
 export function buildBoxSpec(C: ChartConfig, rows: BoxRow[], yTitle: string) {
-  const values = rows.map(r => ({
-    label:       r.label,
-    min:         +r.min.toFixed(C.dataLabelDecimals),
-    q1:          +r.q1.toFixed(C.dataLabelDecimals),
-    median:      +r.median.toFixed(C.dataLabelDecimals),
-    q3:          +r.q3.toFixed(C.dataLabelDecimals),
-    max:         +r.max.toFixed(C.dataLabelDecimals),
-    barColor:    r.color.bg,
-    borderColor: r.color.border,
-  }))
+  const values = rows.map((r, ri) => {
+    const color = r.color ?? resolveColor(C, r.label, ri)
+    const resolved = C.modelColors[r.label] ?? color
+    return {
+      label:       r.label,
+      min:         +r.min.toFixed(C.dataLabelDecimals),
+      q1:          +r.q1.toFixed(C.dataLabelDecimals),
+      median:      +r.median.toFixed(C.dataLabelDecimals),
+      q3:          +r.q3.toFixed(C.dataLabelDecimals),
+      max:         +r.max.toFixed(C.dataLabelDecimals),
+      barColor:    resolved.bg,
+      borderColor: resolved.border,
+    }
+  })
 
   const boxDomain = rows.map(r => r.label)
   const xEnc = {
@@ -461,12 +470,12 @@ export function buildBoxSpec(C: ChartConfig, rows: BoxRow[], yTitle: string) {
       },
       // Series label below
       {
-        mark: { type: 'text', clip: false, angle: 90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
+        mark: { type: 'text', clip: true, angle: -90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
         encoding: {
           x:     xEnc,
           y:     { value: C.chartHeight },
           text:  { field: 'label' },
-          color: { field: 'borderColor', type: 'nominal', scale: null, legend: null },
+          color: { value: C.axisTickColor },
         },
       },
     ],
@@ -496,8 +505,8 @@ export function buildScatterSpec(C: ChartConfig, parsed: ASRParsed, yTitle: stri
   const xTitle = rowX?.category ?? ''
 
   const colorScaleDomain = modelDefs.map(d => d.label ?? d.col)
-  const colorBgRange     = modelDefs.map((d, i) => (d.color ?? AUTO_COLORS[i % AUTO_COLORS.length]).bg)
-  const colorBorderRange = modelDefs.map((d, i) => (d.color ?? AUTO_COLORS[i % AUTO_COLORS.length]).border)
+  const colorBgRange     = modelDefs.map((d, i) => (d.color ?? resolveColor(C, d.label ?? d.col, i)).bg)
+  const colorBorderRange = modelDefs.map((d, i) => (d.color ?? resolveColor(C, d.label ?? d.col, i)).border)
 
   const fmt = (n: number) => Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, '')
 
@@ -538,7 +547,7 @@ export function buildScatterSpec(C: ChartConfig, parsed: ASRParsed, yTitle: stri
       {
         mark: { type: 'point', filled: true, size: 80, strokeWidth: 1.5 },
         encoding: {
-          x:      { field: 'x', type: 'quantitative', scale: { zero: false }, axis: xAxis },
+          x:      { field: 'x', type: 'quantitative', scale: { zero: false, nice: true, padding: 10 }, axis: xAxis },
           y:      { field: 'y', type: 'quantitative', scale: { zero: false }, axis: yAxis(C, yTitle) },
           color:  { field: 'model', type: 'nominal', scale: { domain: colorScaleDomain, range: colorBgRange },     legend: null },
           stroke: { field: 'model', type: 'nominal', scale: { domain: colorScaleDomain, range: colorBorderRange }, legend: null },
@@ -550,7 +559,7 @@ export function buildScatterSpec(C: ChartConfig, parsed: ASRParsed, yTitle: stri
           x:     { field: 'x', type: 'quantitative' },
           y:     { field: 'y', type: 'quantitative' },
           text:  { field: 'model' },
-          color: { field: 'labelColor', type: 'nominal', scale: null, legend: null },
+          color: { value: C.axisTickColor },
         },
       },
       {
@@ -559,7 +568,7 @@ export function buildScatterSpec(C: ChartConfig, parsed: ASRParsed, yTitle: stri
           x:     { field: 'x', type: 'quantitative' },
           y:     { field: 'y', type: 'quantitative' },
           text:  { field: 'tag' },
-          color: { field: 'labelColor', type: 'nominal', scale: null, legend: null },
+          color: { value: C.axisTickColor },
         },
       },
     ],
@@ -576,7 +585,7 @@ export function buildClusteredSpec(
   const values: object[] = []
   rows.forEach(row => {
     row.models.forEach((model, mi) => {
-      const color = seriesColors[model] ?? AUTO_COLORS[mi % AUTO_COLORS.length]
+      const color = seriesColors[model] ?? resolveColor(C, model, mi)
       values.push({ category: row.category, model, barColor: color.bg, labelColor: color.border, score: +row.values[mi].toFixed(2) })
     })
   })
@@ -612,13 +621,13 @@ export function buildClusteredSpec(
         },
       },
       {
-        mark: { type: 'text', clip: false, angle: 90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
+        mark: { type: 'text', clip: true, angle: -90, align: 'left', baseline: 'top', dx: C.barLabelPaddingTop, dy: C.barLabelOffsetY, fontSize: C.barLabelSize, fontWeight: C.barLabelWeight, font: C.fontSans, lineBreak: '\n' },
         encoding: {
           x:       { field: 'category', type: 'nominal' },
           xOffset: { field: 'model',    type: 'nominal' },
           y:       { value: C.clusteredChartHeight },
           text:    { field: 'model' },
-          color:   { field: 'labelColor', type: 'nominal', scale: null, legend: null },
+          color:   { value: C.axisTickColor },
         },
       },
     ],
@@ -658,16 +667,18 @@ export function wrapAsSvg(
   const hMatch   = chartSvg.match(/\bheight="([\d.]+)"/)
   const naturalW = wMatch ? parseFloat(wMatch[1]) : 500
   const naturalH = hMatch ? parseFloat(hMatch[1]) : 400
-  const w        = fixedWidth  ?? naturalW
-  const h        = fixedHeight ?? naturalH
-  const totalH   = h + headerHeight
+  const w      = fixedWidth  ?? naturalW
+  // fixedHeight is the TOTAL card (header + chart). Without it, auto-size from chart.
+  const totalH = fixedHeight ?? (naturalH + headerHeight)
+  const h      = fixedHeight != null ? (fixedHeight - headerHeight) : naturalH
 
   const viewBox     = `viewBox="0 0 ${naturalW} ${naturalH}"`
   const innerResized = chartSvg
+    .replace(/\s*preserveAspectRatio="[^"]*"/, '')        // strip Vega's own pAR so ours wins
     .replace(/\bwidth="[\d.]+"/, `width="${w}"`)
     .replace(/\bheight="[\d.]+"/, `height="${h}"`)
     .replace(/^<svg /,  (m) => (/\bviewBox=/.test(chartSvg) ? m : `<svg ${viewBox} `))
-    .replace(/^<svg /,  `<svg y="${headerHeight}" `)
+    .replace(/^<svg /,  `<svg preserveAspectRatio="none" y="${headerHeight}" `)
 
   const line1Y = C.cardLine1Y
   const tagY   = line1Y
@@ -677,7 +688,13 @@ export function wrapAsSvg(
     ? `<text x="${w - 10}" y="${totalH - 10}" text-anchor="end" font-family="${C.fontMono}" font-size="${C.nLabelSize}" fill="${C.nLabelColor}">n=${count}</text>`
     : ''
 
+  const fontStyles = [
+    C.fontUrlSans ? `@import url("${C.fontUrlSans}");` : '',
+    C.fontUrlMono ? `@import url("${C.fontUrlMono}");` : '',
+  ].filter(Boolean).join(' ')
+
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${totalH}">
+  ${fontStyles ? `<defs><style>${fontStyles}</style></defs>` : ''}
   <rect width="${w}" height="${totalH}" fill="${C.cardBg}" />
   <text x="${w - C.cardHeaderPaddingX}" y="${tagY}" text-anchor="end" font-family="${C.fontSans}" font-size="${C.cardTagSize}" font-weight="${C.cardTagWeight}" fill="${C.cardTagColor}">${tag}</text>
   <text x="${C.cardHeaderPaddingX}" y="${line1Y}" font-family="${C.fontSans}" font-size="${C.cardCategorySize}" font-weight="${C.cardCategoryWeight}" fill="${C.cardCategoryColor}">${line1}</text>
@@ -877,6 +894,7 @@ export async function generateCards(
         if (metric.modelDefs) {
           // ── Direct mode: fileKey IS the sheet name ─────────────────────────
           const csv         = xlsxSheetToCsv(buf, fileKey)
+          const yTitle      = metric.yTitle ?? dataset.yTitle
           const pivot       = metric.pivot ?? false
           const splitBy     = metric.splitBy ?? 'none'
           const metricConfig = metric.showClusterLabels !== undefined
@@ -885,7 +903,7 @@ export async function generateCards(
 
           if (chartType === 'scatter') {
             const parsed     = parseASRCsv(csv, metric.modelDefs)
-            const chartSvg   = await specToSvg(buildScatterSpec(metricConfig, parsed, dataset.yTitle, metric.pivot ?? false))
+            const chartSvg   = await specToSvg(buildScatterSpec(metricConfig, parsed, yTitle, metric.pivot ?? false))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
@@ -893,7 +911,7 @@ export async function generateCards(
             cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel) })
 
           } else if (chartType === 'box') {
-            const chartSvg   = await specToSvg(buildBoxSpec(metricConfig, parseBoxCsv(csv, metric.modelDefs), dataset.yTitle))
+            const chartSvg   = await specToSvg(buildBoxSpec(metricConfig, parseBoxCsv(csv, metric.modelDefs), yTitle))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
@@ -904,7 +922,7 @@ export async function generateCards(
             // one card per data row — each shows all models for that row
             const parsed = parseASRCsv(csv, metric.modelDefs)
             for (const row of parsed.rows) {
-              const spec       = buildASRSpec(metricConfig, { modelDefs: parsed.modelDefs, rows: [row] }, dataset.yTitle, false, true)
+              const spec       = buildASRSpec(metricConfig, { modelDefs: parsed.modelDefs, rows: [row] }, yTitle, false, true)
               const chartSvg   = await specToSvg(spec)
               const wrappedSvg = wrapAsSvg(config, chartSvg, {
                 tag: dataset.tag, category: metricLabel, dialect: row.category,
@@ -918,7 +936,7 @@ export async function generateCards(
             const parsed = parseASRCsv(csv, metric.modelDefs)
             for (const def of parsed.modelDefs) {
               const colLabel   = def.label ?? def.col
-              const spec       = buildASRSpec(metricConfig, { modelDefs: [def], rows: parsed.rows }, dataset.yTitle)
+              const spec       = buildASRSpec(metricConfig, { modelDefs: [def], rows: parsed.rows }, yTitle)
               const chartSvg   = await specToSvg(spec)
               const wrappedSvg = wrapAsSvg(config, chartSvg, {
                 tag: dataset.tag, category: metricLabel, dialect: colLabel,
@@ -930,7 +948,7 @@ export async function generateCards(
           } else {
             // one card, optionally pivoted
             const parsed     = parseASRCsv(csv, metric.modelDefs)
-            const chartSvg   = await specToSvg(buildASRSpec(metricConfig, parsed, dataset.yTitle, pivot))
+            const chartSvg   = await specToSvg(buildASRSpec(metricConfig, parsed, yTitle, pivot))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
               tag: dataset.tag, category: metricLabel, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,

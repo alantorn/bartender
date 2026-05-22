@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -e ' *)",
+      "PowerShell(Get-ChildItem -Path \"e:\\\\prog\\\\bartender\" -Directory | Where-Object { $_.Name -notmatch 'node_modules' })"
+    ]
+  }
+}

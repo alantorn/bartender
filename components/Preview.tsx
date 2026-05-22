@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import type { GeneratedCard } from '@/lib/types'
 import {
   type ChartType,
@@ -16,6 +17,7 @@ interface Props {
   error?:               string | null
   datasetsJson:         string
   onDatasetsJsonChange: (v: string) => void
+  onDownload?:          () => void
 }
 
 const CHART_TYPES: { value: ChartType; label: string }[] = [
@@ -40,7 +42,24 @@ function downloadCard(card: GeneratedCard) {
   setTimeout(() => URL.revokeObjectURL(url), 5000)
 }
 
-export default function Preview({ cards, loading, error, datasetsJson, onDatasetsJsonChange }: Props) {
+const FigmaIcon = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M5 5.5A3.5 3.5 0 0 1 8.5 2H12v7H8.5A3.5 3.5 0 0 1 5 5.5z"/>
+    <path d="M12 2h3.5a3.5 3.5 0 1 1 0 7H12V2z"/>
+    <path d="M12 12.5a3.5 3.5 0 1 1 7 0 3.5 3.5 0 1 1-7 0z"/>
+    <path d="M5 19.5A3.5 3.5 0 0 1 8.5 16H12v3.5a3.5 3.5 0 1 1-7 0z"/>
+    <path d="M5 12.5A3.5 3.5 0 0 1 8.5 9H12v7H8.5A3.5 3.5 0 0 1 5 12.5z"/>
+  </svg>
+)
+
+export default function Preview({ cards, loading, error, datasetsJson, onDatasetsJsonChange, onDownload }: Props) {
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+
+  async function copyCard(card: GeneratedCard) {
+    await navigator.clipboard.writeText(card.svgData)
+    setCopiedId(card.id)
+    setTimeout(() => setCopiedId(null), 1500)
+  }
   if (error) {
     return (
       <div className="rounded-lg bg-red-950/40 border border-red-800 text-red-400 px-4 py-3 text-sm">
@@ -69,6 +88,15 @@ export default function Preview({ cards, loading, error, datasetsJson, onDataset
 
   return (
     <div className="flex flex-col items-start gap-6">
+      {onDownload && (
+        <button
+          type="button"
+          onClick={onDownload}
+          className="self-end rounded px-3 py-1.5 text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-500 transition-colors"
+        >
+          Download all
+        </button>
+      )}
       {cards.map(card => {
         const metric = metrics.find(m => card.id.includes(`_${slug(m.label)}_`) || card.id.endsWith(`_${slug(m.label)}`))
         return (
@@ -115,6 +143,11 @@ export default function Preview({ cards, loading, error, datasetsJson, onDataset
                 </>
               )}
               <div className="flex-1" />
+              <button
+                onClick={() => copyCard(card)}
+                title="Copy SVG for Figma"
+                className={`flex items-center px-1.5 py-0.5 rounded transition-colors shrink-0 ${copiedId === card.id ? 'text-green-400 bg-green-950/40' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-700'}`}
+              ><FigmaIcon /></button>
               <button
                 onClick={() => downloadCard(card)}
                 title="Download SVG"

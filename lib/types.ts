@@ -15,6 +15,7 @@ export interface Metric {
   label:      string              // display label (= sheet name)
   fileKey:    string              // sheet name — used directly, no pattern substitution
   chartType?: 'bar' | 'box' | 'scatter' // auto-detected during inspect; default 'bar'
+  yTitle?:    string                     // y-axis label; overrides dataset.yTitle when set
   modelDefs?: ModelDef[]         // column definitions for this sheet
   pivot?:             boolean            // bar only: swap cluster/sub-bar axes (rows ↔ columns)
   splitBy?:           'none' | 'row' | 'column' // bar only: emit one card per row or per column
@@ -115,6 +116,7 @@ export interface ChartConfig {
   showYTitle:        boolean
   showYTickLabels:   boolean
   showXDomain:       boolean
+  showYDomain:       boolean
   showClusterLabels: boolean
   showN:             boolean
   nLabelSize:        number
@@ -131,6 +133,8 @@ export interface ChartConfig {
   yTitleY:           number
   gridColorX:        string
   gridColorY:        string
+  // Per-model color overrides keyed by model name (col or label)
+  modelColors:       Record<string, SeriesColor>
   // Page chrome
   pageBg:            string
   pageText:          string

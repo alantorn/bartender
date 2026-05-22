@@ -175,6 +175,7 @@ export function useStudio() {
     error:                 genError,
     datasetsJson,
     onDatasetsJsonChange:  setDatasetsJson,
+    onDownload:            handleDownload,
   }
 
   /** Props for ConfigPanel. */

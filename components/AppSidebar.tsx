@@ -48,15 +48,18 @@ export default function AppSidebar({
 }: Props) {
   const inputRef = useRef<HTMLInputElement>(null)
   const [search, setSearch] = useState('')
-  const filteredCards = cards.filter(c => c.label.toLowerCase().includes(search.toLowerCase()))
+  const filteredCards = cards.filter((c) =>
+    c.label.toLowerCase().includes(search.toLowerCase()),
+  )
   return (
     <Sidebar>
       <SidebarHeader>
-        
         {/* Logo */}
         <div className='flex items-center gap-2.5 px-2 py-3  mb-10'>
           <img src='/bartender-logo.svg' alt='Bartender' className='w-8 h-12' />
-          <span className='text-3xl font-semibold text-white tracking-tight'>Bartender</span>
+          <span className='text-3xl font-semibold text-white tracking-tight'>
+            Bartender
+          </span>
         </div>
         <SidebarSection className='max-lg:hidden'>
           {/* Document picker */}
@@ -69,12 +72,12 @@ export default function AppSidebar({
               <ArrowPathIcon className='animate-spin' />
             ) : file ? (
               <span className='flex items-center'>
-                <CheckCircleIcon className='size-5 text-green-400 fill-green-400' />
+                <CheckCircleIcon className='size-5 fill-[#187676]' />
               </span>
             ) : (
               <DocumentArrowUpIcon />
             )}
-            <SidebarLabel className={file ? 'text-indigo-400' : ''}>
+            <SidebarLabel className={file ? 'text-[#FFC013]' : ''}>
               {file ? file.name : 'Open document…'}
             </SidebarLabel>
           </SidebarItem>
@@ -102,7 +105,7 @@ export default function AppSidebar({
                 </SidebarItem>
               </SidebarSection>
               <SidebarSection className='max-lg:hidden'>
-                <Divider className='mt-5 mb-5'/>
+                <Divider className='mt-5 mb-5' />
                 <InputGroup>
                   <MagnifyingGlassIcon />
                   <Input
@@ -110,7 +113,7 @@ export default function AppSidebar({
                     placeholder='Search…'
                     aria-label='Search'
                     value={search}
-                    onChange={e => setSearch(e.target.value)}
+                    onChange={(e) => setSearch(e.target.value)}
                   />
                 </InputGroup>
               </SidebarSection>
@@ -118,13 +121,18 @@ export default function AppSidebar({
             <SidebarSection className='max-lg:hidden'>
               {cards.length > 0 ? (
                 filteredCards.length > 0 ? (
-                  filteredCards.map(card => (
+                  filteredCards.map((card) => (
                     <SidebarItem
                       key={card.id}
                       href='#'
-                      onClick={e => {
+                      onClick={(e) => {
                         e.preventDefault()
-                        document.getElementById(`card-${card.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        document
+                          .getElementById(`card-${card.id}`)
+                          ?.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start',
+                          })
                       }}
                     >
                       {card.label}
@@ -146,8 +154,8 @@ export default function AppSidebar({
             type='button'
             onClick={onGenerate}
             disabled={!canGenerate || loading}
-            className='w-full flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors
-            bg-indigo-600 text-white hover:bg-indigo-500
+            className='w-full cursor-pointer flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors
+            bg-[#187676] text-[#ffffff] hover:bg-[#ac4800]
             disabled:opacity-40 disabled:cursor-not-allowed'
           >
             {loading ? (
@@ -155,7 +163,7 @@ export default function AppSidebar({
             ) : (
               <BoltIcon className='size-4' />
             )}
-            Serve me
+            Create charts
           </button>
         </SidebarFooter>
       )}

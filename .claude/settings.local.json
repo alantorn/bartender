@@ -2,7 +2,23 @@
   "permissions": {
     "allow": [
       "Bash(node -e ' *)",
-      "PowerShell(Get-ChildItem -Path \"e:\\\\prog\\\\bartender\" -Directory | Where-Object { $_.Name -notmatch 'node_modules' })"
+      "PowerShell(Get-ChildItem -Path \"e:\\\\prog\\\\bartender\" -Directory | Where-Object { $_.Name -notmatch 'node_modules' })",
+      "Read(//e//**)",
+      "Bash(yaml)",
+      "Bash(json\" -SimpleMatch)",
+      "PowerShell(ls e:/prog/bartender/ | Where-Object { $_.Name -match 'next\\\\.config|\\\\.css$' } | Format-Table Name)",
+      "PowerShell(ls e:/prog/bartender/ | Where-Object { $_.Name -match 'workspace|npmrc|pnpm' } | Format-Table Name)",
+      "PowerShell(Get-Content \"e:/prog/bartender/node_modules/.pnpm/next@16.2.3_patch_hash=ffb2_54b16a8bdec3d91ceec80bf2f785f9e8/node_modules/next/dist/build/webpack-config.js\" | Select-Object -Index 1082..1095 | ForEach-Object { $_ })",
+      "PowerShell(Test-Path \"e:/prog/bartender/.npmrc\"; Test-Path \"$env:USERPROFILE/.npmrc\")",
+      "PowerShell(ls e:/prog/bartender/ -Force | Where-Object { $_.Name -match '^\\\\.' } | Format-Table Name)",
+      "Read(//c/Users/editor/**)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3000/)",
+      "Bash(kill %1)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:3001/api/config)"
+    ],
+    "additionalDirectories": [
+      "e:\\prog"
     ]
   }
 }

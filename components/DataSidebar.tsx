@@ -187,7 +187,7 @@ export default function DataSidebar({
                             type="checkbox"
                             checked={m.showClusterLabels}
                             onChange={e => onDatasetsJsonChange(patchMetricField(datasetsJson, m.label, 'showClusterLabels', e.target.checked))}
-                            className="accent-indigo-400 cursor-pointer"
+                            className="accent-[#187676] cursor-pointer"
                           />
                           <span className="text-xs text-gray-400">title</span>
                         </label>

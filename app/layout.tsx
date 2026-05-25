@@ -10,7 +10,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className="dark h-full bg-zinc-950 antialiased">
+    <html lang="en" className="dark h-full bg-zinc-950 antialiased" suppressHydrationWarning>
       <body className="h-full">{children}</body>
     </html>
   );

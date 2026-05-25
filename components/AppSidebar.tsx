@@ -77,7 +77,7 @@ export default function AppSidebar({
             ) : (
               <DocumentArrowUpIcon />
             )}
-            <SidebarLabel className={file ? 'text-[#FFC013]' : ''}>
+            <SidebarLabel className={file ? 'text-[#0fe7e7]' : ''}>
               {file ? file.name : 'Open document…'}
             </SidebarLabel>
           </SidebarItem>
@@ -94,7 +94,7 @@ export default function AppSidebar({
         </SidebarSection>
       </SidebarHeader>
 
-      <SidebarBody className='!pt-0'>
+      <SidebarBody className='pt-0!'>
         {file && (
           <>
             <div className='sticky top-0 z-10 bg-zinc-900 -mx-4 px-4 pt-4 pb-2 shadow-[0_4px_8px_4px_#18181b]'>
@@ -155,14 +155,10 @@ export default function AppSidebar({
             onClick={onGenerate}
             disabled={!canGenerate || loading}
             className='w-full cursor-pointer flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors
-            bg-[#187676] text-[#ffffff] hover:bg-[#ac4800]
+            bg-[#187676] text-[#ffffff] hover:bg-[#0bb4b4]
             disabled:opacity-40 disabled:cursor-not-allowed'
           >
-            {loading ? (
-              <ArrowPathIcon className='size-4 animate-spin' />
-            ) : (
-              <BoltIcon className='size-4' />
-            )}
+        
             Create charts
           </button>
         </SidebarFooter>

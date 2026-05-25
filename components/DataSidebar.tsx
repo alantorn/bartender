@@ -148,6 +148,13 @@ export default function DataSidebar({
                         )
                       })()}
                     </div>
+                    <input
+                      type="text"
+                      placeholder="Display label override…"
+                      value={m.displayLabel ?? ''}
+                      onChange={e => onDatasetsJsonChange(patchMetricField(datasetsJson, m.label, 'displayLabel', e.target.value || undefined))}
+                      className="w-full bg-white/5 border border-white/10 rounded px-1.5 py-0.5 text-xs text-gray-300 placeholder-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    />
                     {m.chartType !== 'box' && (
                     <div className="flex items-center gap-1">
                       <select
@@ -187,7 +194,7 @@ export default function DataSidebar({
                             type="checkbox"
                             checked={m.showClusterLabels}
                             onChange={e => onDatasetsJsonChange(patchMetricField(datasetsJson, m.label, 'showClusterLabels', e.target.checked))}
-                            className="accent-[#187676] cursor-pointer"
+                            className="bg-[#0a5656] cursor-pointer"
                           />
                           <span className="text-xs text-gray-400">title</span>
                         </label>

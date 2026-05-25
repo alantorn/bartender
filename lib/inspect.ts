@@ -3,7 +3,7 @@
  * Auto-detect dataset structure from an uploaded xlsx file.
  * One sheet = one chart. No pattern matching required.
  */
-import { read as xlsxRead, utils as xlsxUtils } from 'xlsx'
+import { read, utils } from 'xlsx'
 import type { ASRDataset, ModelDef, Metric } from './types'
 
 /** Count-like column names that should not be treated as model (data) columns. */
@@ -14,10 +14,10 @@ const COUNT_COL_RE = /^\s*(n|count|value.?count|num.?samples?)\s*$/i
  * Box: first column of data rows contains stat labels q1 + q3 + median
  * (i.e. the new explicit-stats row format).
  */
-function detectChartType(wb: ReturnType<typeof xlsxRead>, sheetName: string): 'bar' | 'box' | 'scatter' {
+function detectChartType(wb: ReturnType<typeof read>, sheetName: string): 'bar' | 'box' | 'scatter' {
   const ws = wb.Sheets[sheetName]
   if (!ws) return 'bar'
-  const lines = xlsxUtils.sheet_to_csv(ws)
+  const lines = utils.sheet_to_csv(ws)
     .split(/\r?\n/)
     .map(l => l.trim())
     .filter(l => l.replace(/,/g, '').trim() !== '')
@@ -30,19 +30,19 @@ function detectChartType(wb: ReturnType<typeof xlsxRead>, sheetName: string): 'b
 }
 
 /** Build ModelDef[] from a sheet's column headers (skips first/label col and count col). */
-function sheetYTitle(wb: ReturnType<typeof xlsxRead>, sheetName: string, chartType: 'bar' | 'box' | 'scatter'): string {
+function sheetYTitle(wb: ReturnType<typeof read>, sheetName: string, chartType: 'bar' | 'box' | 'scatter'): string {
   const ws = wb.Sheets[sheetName]
   if (!ws) return 'Value'
-  const lines = xlsxUtils.sheet_to_csv(ws).split(/\r?\n/).filter(l => l.replace(/,/g, '').trim() !== '')
+  const lines = utils.sheet_to_csv(ws).split(/\r?\n/).filter(l => l.replace(/,/g, '').trim() !== '')
   // Scatter: row 1 = x-axis (handled by buildScatterSpec), row 2 = y-axis
   const rowIndex = chartType === 'scatter' ? 2 : 1
   return lines[rowIndex]?.split(',')[0]?.trim() || 'Value'
 }
 
-function sheetModelDefs(wb: ReturnType<typeof xlsxRead>, sheetName: string): ModelDef[] {
+function sheetModelDefs(wb: ReturnType<typeof read>, sheetName: string): ModelDef[] {
   const ws = wb.Sheets[sheetName]
   if (!ws) return []
-  const headers = xlsxUtils.sheet_to_csv(ws).split(/\r?\n/)[0].split(',').map(s => s.trim())
+  const headers = utils.sheet_to_csv(ws).split(/\r?\n/)[0].split(',').map(s => s.trim())
   // Skip first (label) column; skip a trailing count column
   const dataCols = headers.slice(1)
   const last = dataCols[dataCols.length - 1] ?? ''
@@ -57,7 +57,7 @@ export interface InspectResult {
 }
 
 export function inspectXlsx(buffer: Buffer): InspectResult {
-  const wb = xlsxRead(buffer, { type: 'buffer' })
+  const wb = read(buffer, { type: 'buffer' })
 
   const metrics: Metric[]                   = []
   const colCounts: Record<string, number>   = {}

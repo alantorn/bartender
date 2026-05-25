@@ -115,9 +115,8 @@ export default function Preview({
 
   if (!cards.length) {
     return (
-      <div className='text-sm text-zinc-500 py-8 text-center'>
-        Upload a file and click <strong>Generate</strong> to preview charts
-        here.
+      <div className=' mt-[20%] text-sm text-zinc-500 py-8 text-center'>
+        Upload a file and click <strong>Create charts</strong>
       </div>
     )
   }
@@ -237,7 +236,7 @@ export default function Preview({
                             ),
                           )
                         }
-                        className='border border-zinc-600 rounded px-1.5 py-0.5 text-xs bg-zinc-700 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500'
+                        className='border border-zinc-600 rounded px-1.5 py-0.5 text-xs bg-zinc-700 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-[#0bb4b4]'
                       >
                         {SPLIT_BY.map((s) => (
                           <option key={s.value} value={s.value}>

@@ -7,7 +7,7 @@
 
 import { compile } from 'vega-lite'
 import * as vega from 'vega'
-import { read as xlsxRead, utils as xlsxUtils } from 'xlsx'
+import { read, utils } from 'xlsx'
 
 import type { ChartConfig, ModelDef, SeriesColor, GeneratedCard } from './types'
 
@@ -72,9 +72,9 @@ export function parseClusteredCsv(content: string): ClusteredRow[] {
 
 // ── XLSX helpers ─────────────────────────────────────────────────────────────
 
-/** Normalize a string for fuzzy comparison: lowercase, collapse whitespace. */
+/** Normalize a string for fuzzy comparison: lowercase, collapse any non-alphanumeric run to a space. */
 function normalizeSheetName(s: string): string {
-  return s.toLowerCase().replace(/\s+/g, ' ').trim()
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
 }
 
 /**
@@ -89,7 +89,7 @@ function wordOverlap(query: string, candidate: string): number {
 }
 
 /** Find the best matching sheet name, with fuzzy fallback. */
-function resolveSheetName(wb: ReturnType<typeof xlsxRead>, target: string): string | null {
+function resolveSheetName(wb: ReturnType<typeof read>, target: string): string | null {
   // 1. Exact match
   if (wb.Sheets[target]) return target
 
@@ -114,17 +114,32 @@ function resolveSheetName(wb: ReturnType<typeof xlsxRead>, target: string): stri
 }
 
 export function xlsxSheetToCsv(buffer: Buffer, sheetName: string): string {
-  const wb = xlsxRead(buffer, { type: 'buffer' })
+  const wb = read(buffer, { type: 'buffer' })
   const resolved = resolveSheetName(wb, sheetName)
   if (!resolved) {
     throw new Error(`Sheet "${sheetName}" not found. Available: ${wb.SheetNames.join(', ')}`)
   }
-  return xlsxUtils.sheet_to_csv(wb.Sheets[resolved])
+  return utils.sheet_to_csv(wb.Sheets[resolved])
 }
 
 export function xlsxSheetNames(buffer: Buffer): string[] {
-  const wb = xlsxRead(buffer, { type: 'buffer' })
+  const wb = read(buffer, { type: 'buffer' })
   return wb.SheetNames
+}
+
+// ── Decimal precision helpers ─────────────────────────────────────────────────
+
+/** Count meaningful decimal places in a number, ignoring float noise (8 sig-fig cap). */
+function sigDecimals(v: number): number {
+  if (!Number.isFinite(v) || v === 0) return 0
+  const s = parseFloat(v.toPrecision(8)).toString()
+  const dot = s.indexOf('.')
+  return dot === -1 ? 0 : s.slice(dot + 1).replace(/0+$/, '').length
+}
+
+/** Max decimal places across a set of values, capped at 6, with a minimum floor. */
+function dataDecimals(values: number[], floor = 0): number {
+  return Math.min(6, Math.max(floor, ...values.filter(Number.isFinite).map(sigDecimals)))
 }
 
 // ── Vega-Lite spec builders ───────────────────────────────────────────────────
@@ -220,12 +235,10 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
     }
   }
 
-  // Auto-compute label decimal places: enough so the smallest non-zero value
-  // doesn't round to zero. e.g. 0.00052 needs 4 decimals.
-  const nonZero = (values as { wer: number }[]).map(v => Math.abs(v.wer)).filter(v => v > 0)
-  const autoDecimals = nonZero.length > 0
-    ? Math.max(C.dataLabelDecimals, Math.min(6, Math.ceil(-Math.log10(Math.min(...nonZero))) + 1))
-    : C.dataLabelDecimals
+  const autoDecimals = dataDecimals(
+    (values as { wer: number }[]).map(v => v.wer),
+    C.dataLabelDecimals,
+  )
 
   const xAxisStyle = {
     labels:        !hideXLabels && C.showClusterLabels,
@@ -317,7 +330,7 @@ export function buildASRSpec(C: ChartConfig, parsed: ASRParsed, yTitle: string, 
           x:       xTextEnc,
           ...(xTextOff ? { xOffset: xTextOff } : {}),
           y:       { field: 'wer',   type: 'quantitative' },
-          text:    { field: 'wer',   format: `.${autoDecimals}f` },
+          text:    { field: 'wer',   format: `.${autoDecimals}~f` },
         },
       },
       {
@@ -402,11 +415,11 @@ export function buildBoxSpec(C: ChartConfig, rows: BoxRow[], yTitle: string) {
     const resolved = C.modelColors[r.label] ?? color
     return {
       label:       r.label,
-      min:         +r.min.toFixed(C.dataLabelDecimals),
-      q1:          +r.q1.toFixed(C.dataLabelDecimals),
-      median:      +r.median.toFixed(C.dataLabelDecimals),
-      q3:          +r.q3.toFixed(C.dataLabelDecimals),
-      max:         +r.max.toFixed(C.dataLabelDecimals),
+      min:         r.min,
+      q1:          r.q1,
+      median:      r.median,
+      q3:          r.q3,
+      max:         r.max,
       barColor:    resolved.bg,
       borderColor: resolved.border,
     }
@@ -465,7 +478,7 @@ export function buildBoxSpec(C: ChartConfig, rows: BoxRow[], yTitle: string) {
         encoding: {
           x:    { field: 'label',  type: 'nominal' },
           y:    { field: 'max',    type: 'quantitative' },
-          text: { field: 'median', format: `.${C.dataLabelDecimals}f` },
+          text: { field: 'median', format: `.${dataDecimals(values.flatMap(v => [v.min, v.q1, v.median, v.q3, v.max]), C.dataLabelDecimals)}~f` },
         },
       },
       // Series label below
@@ -586,7 +599,7 @@ export function buildClusteredSpec(
   rows.forEach(row => {
     row.models.forEach((model, mi) => {
       const color = seriesColors[model] ?? resolveColor(C, model, mi)
-      values.push({ category: row.category, model, barColor: color.bg, labelColor: color.border, score: +row.values[mi].toFixed(2) })
+      values.push({ category: row.category, model, barColor: color.bg, labelColor: color.border, score: row.values[mi] })
     })
   })
 
@@ -617,7 +630,7 @@ export function buildClusteredSpec(
           x:       { field: 'category', type: 'nominal' },
           xOffset: { field: 'model',    type: 'nominal' },
           y:       { field: 'score',    type: 'quantitative' },
-          text:    { field: 'score',    format: `.${C.dataLabelDecimals}f` },
+          text:    { field: 'score',    format: `.${dataDecimals((values as {score:number}[]).map(v => v.score), C.dataLabelDecimals)}~f` },
         },
       },
       {
@@ -657,10 +670,16 @@ export function wrapAsSvg(
   // split into line1 (before) and line2 (after). Otherwise use as-is.
   let line1 = opts.category
   let line2 = opts.dialect
-  if (!line2 && opts.category.includes(' - ')) {
-    const idx = opts.category.indexOf(' - ')
-    line1 = opts.category.slice(0, idx)
-    line2 = opts.category.slice(idx + 3)
+  if (!line2) {
+    const pipeIdx = opts.category.indexOf('|')
+    const dashIdx = opts.category.indexOf(' - ')
+    if (pipeIdx !== -1) {
+      line1 = opts.category.slice(0, pipeIdx).trimEnd()
+      line2 = opts.category.slice(pipeIdx + 1).trimStart()
+    } else if (dashIdx !== -1) {
+      line1 = opts.category.slice(0, dashIdx)
+      line2 = opts.category.slice(dashIdx + 3)
+    }
   }
 
   const wMatch   = chartSvg.match(/\bwidth="([\d.]+)"/)
@@ -680,9 +699,7 @@ export function wrapAsSvg(
     .replace(/^<svg /,  (m) => (/\bviewBox=/.test(chartSvg) ? m : `<svg ${viewBox} `))
     .replace(/^<svg /,  `<svg preserveAspectRatio="none" y="${headerHeight}" `)
 
-  const line1Y = C.cardLine1Y
-  const tagY   = line1Y
-  const line2Y = line1Y + C.cardCategorySize + C.cardLineGap
+  const titleY = C.cardLine1Y
 
   const nLabel = C.showN && count != null && count > 0
     ? `<text x="${w - 10}" y="${totalH - 10}" text-anchor="end" font-family="${C.fontMono}" font-size="${C.nLabelSize}" fill="${C.nLabelColor}">n=${count}</text>`
@@ -696,9 +713,9 @@ export function wrapAsSvg(
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${totalH}">
   ${fontStyles ? `<defs><style>${fontStyles}</style></defs>` : ''}
   <rect width="${w}" height="${totalH}" fill="${C.cardBg}" />
-  <text x="${w - C.cardHeaderPaddingX}" y="${tagY}" text-anchor="end" font-family="${C.fontSans}" font-size="${C.cardTagSize}" font-weight="${C.cardTagWeight}" fill="${C.cardTagColor}">${tag}</text>
-  <text x="${C.cardHeaderPaddingX}" y="${line1Y}" font-family="${C.fontSans}" font-size="${C.cardCategorySize}" font-weight="${C.cardCategoryWeight}" fill="${C.cardCategoryColor}">${line1}</text>
-  ${line2 ? `<text x="${C.cardHeaderPaddingX}" y="${line2Y}" font-family="${C.fontSans}" font-size="${C.cardDialectSize}" font-weight="${C.cardDialectWeight}" fill="${C.cardDialectColor}">${line2}</text>` : ''}
+  <text x="${w / 2}" y="${titleY}" text-anchor="middle" font-family="${C.fontSans}" font-size="${C.cardCategorySize}" font-weight="${C.cardCategoryWeight}" fill="${C.cardCategoryColor}">${line1}</text>
+  ${line2 ? `<text x="${C.cardHeaderPaddingX}" y="${titleY}" text-anchor="start" font-family="${C.fontSans}" font-size="${C.cardSubcategorySize}" font-weight="${C.cardSubcategoryWeight}" fill="${C.cardDialectColor}">${line2}</text>` : ''}
+  <text x="${w - C.cardHeaderPaddingX}" y="${titleY}" text-anchor="end" font-family="${C.fontSans}" font-size="${C.cardTagSize}" font-weight="${C.cardTagWeight}" fill="${C.cardTagColor}">${tag}</text>
   ${innerResized}
   ${nLabel}
 </svg>`
@@ -889,7 +906,8 @@ export async function generateCards(
       if (!buf) throw new Error(`No file uploaded for dataset "${dataset.id}"`)
 
       for (const metric of dataset.metrics) {
-        const { label: metricLabel, fileKey, chartType = 'bar' } = metric
+        const { label: metricLabel, displayLabel, fileKey, chartType = 'bar' } = metric
+        const displayTitle = displayLabel ?? metricLabel
 
         if (metric.modelDefs) {
           // ── Direct mode: fileKey IS the sheet name ─────────────────────────
@@ -905,7 +923,7 @@ export async function generateCards(
             const parsed     = parseASRCsv(csv, metric.modelDefs)
             const chartSvg   = await specToSvg(buildScatterSpec(metricConfig, parsed, yTitle, metric.pivot ?? false))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
-              tag: dataset.tag, category: metricLabel, dialect: '',
+              tag: dataset.tag, category: displayTitle, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
             })
             cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel) })
@@ -913,7 +931,7 @@ export async function generateCards(
           } else if (chartType === 'box') {
             const chartSvg   = await specToSvg(buildBoxSpec(metricConfig, parseBoxCsv(csv, metric.modelDefs), yTitle))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
-              tag: dataset.tag, category: metricLabel, dialect: '',
+              tag: dataset.tag, category: displayTitle, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
             })
             cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel) })
@@ -925,7 +943,7 @@ export async function generateCards(
               const spec       = buildASRSpec(metricConfig, { modelDefs: parsed.modelDefs, rows: [row] }, yTitle, false, true)
               const chartSvg   = await specToSvg(spec)
               const wrappedSvg = wrapAsSvg(config, chartSvg, {
-                tag: dataset.tag, category: metricLabel, dialect: row.category,
+                tag: dataset.tag, category: displayTitle, dialect: row.category,
                 count: row.count, fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
               })
               cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(row.category)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel, row.category) })
@@ -939,7 +957,7 @@ export async function generateCards(
               const spec       = buildASRSpec(metricConfig, { modelDefs: [def], rows: parsed.rows }, yTitle)
               const chartSvg   = await specToSvg(spec)
               const wrappedSvg = wrapAsSvg(config, chartSvg, {
-                tag: dataset.tag, category: metricLabel, dialect: colLabel,
+                tag: dataset.tag, category: displayTitle, dialect: colLabel,
                 fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
               })
               cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${slug(colLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel, colLabel) })
@@ -950,7 +968,7 @@ export async function generateCards(
             const parsed     = parseASRCsv(csv, metric.modelDefs)
             const chartSvg   = await specToSvg(buildASRSpec(metricConfig, parsed, yTitle, pivot))
             const wrappedSvg = wrapAsSvg(config, chartSvg, {
-              tag: dataset.tag, category: metricLabel, dialect: '',
+              tag: dataset.tag, category: displayTitle, dialect: '',
               fixedWidth: config.svgWidth, fixedHeight: config.svgHeight,
             })
             cards.push({ id: `${dataset.id}_${slug(metricLabel)}_${cardIndex++}`, svgData: wrappedSvg, label: cardLabel(dataset.tag, metricLabel) })

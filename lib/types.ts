@@ -1,4 +1,4 @@
-// ── Shared types used across the studio ──────────────────────────────────────
+// ── Shared types used across bartender ───────────────────────────────────────
 
 export interface SeriesColor {
   bg: string     // CSS color for bar fill
@@ -12,8 +12,9 @@ export interface ModelDef {
 }
 
 export interface Metric {
-  label:      string              // display label (= sheet name)
-  fileKey:    string              // sheet name — used directly, no pattern substitution
+  label:        string            // display label (= sheet name)
+  displayLabel?: string           // optional override for the card title (useful when Excel truncates sheet names)
+  fileKey:      string            // sheet name — used directly, no pattern substitution
   chartType?: 'bar' | 'box' | 'scatter' // auto-detected during inspect; default 'bar'
   yTitle?:    string                     // y-axis label; overrides dataset.yTitle when set
   modelDefs?: ModelDef[]         // column definitions for this sheet
@@ -105,8 +106,8 @@ export interface ChartConfig {
   cardCategorySize:  number
   cardCategoryWeight: string
   cardCategoryColor: string
-  cardDialectSize:   number
-  cardDialectWeight: string
+  cardSubcategorySize:   number
+  cardSubcategoryWeight: string
   cardDialectColor:  string
   cardHeaderHeight:  number
   cardHeaderPaddingX: number

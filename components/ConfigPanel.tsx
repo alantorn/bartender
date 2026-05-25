@@ -10,6 +10,8 @@ import {
   setSearchQuery,
   findNext,
   findPrevious,
+  replaceNext,
+  replaceAll,
 } from '@codemirror/search'
 import { EditorView } from '@codemirror/view'
 import { Prec } from '@codemirror/state'
@@ -51,7 +53,9 @@ export default function ConfigPanel({
   datasetsError,
 }: ConfigPanelProps) {
   const [isFullscreen, setIsFullscreen] = useState(false)
-  const [findText, setFindText] = useState('')
+  const [findText, setFindText]           = useState('')
+  const [replaceText, setReplaceText]     = useState('')
+  const [caseSensitive, setCaseSensitive] = useState(false)
   const editorRef = useRef<ReactCodeMirrorRef>(null)
 
   const tabRef    = useRef<HTMLDivElement>(null)
@@ -120,16 +124,28 @@ export default function ConfigPanel({
     return count
   }, [datasetsJson, findText])
 
+  function updateQuery(find: string, replace: string, cs = caseSensitive) {
+    const view = editorRef.current?.view
+    if (!view) return
+    view.dispatch({
+      effects: setSearchQuery.of(new SearchQuery({ search: find, replace, caseSensitive: cs })),
+    })
+  }
+
   function handleFindChange(text: string) {
     setFindText(text)
-    const view = editorRef.current?.view
-    if (view) {
-      view.dispatch({
-        effects: setSearchQuery.of(
-          new SearchQuery({ search: text, caseSensitive: false }),
-        ),
-      })
-    }
+    updateQuery(text, replaceText)
+  }
+
+  function handleReplaceChange(text: string) {
+    setReplaceText(text)
+    updateQuery(findText, text)
+  }
+
+  function toggleCase() {
+    const next = !caseSensitive
+    setCaseSensitive(next)
+    updateQuery(findText, replaceText, next)
   }
 
   function nav(direction: 'next' | 'prev') {
@@ -137,6 +153,16 @@ export default function ConfigPanel({
     if (!view) return
     if (direction === 'next') findNext(view)
     else findPrevious(view)
+  }
+
+  function doReplaceNext() {
+    const view = editorRef.current?.view
+    if (view) replaceNext(view)
+  }
+
+  function doReplaceAll() {
+    const view = editorRef.current?.view
+    if (view) replaceAll(view)
   }
 
   return (
@@ -161,44 +187,72 @@ export default function ConfigPanel({
           {/* Header bar */}
           <div
             ref={headerRef}
-            role='button'
-            tabIndex={0}
-            onClick={() => isFullscreen ? toggleFullscreen() : close()}
-            onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { if (isFullscreen) toggleFullscreen(); else close() } }}
-            className='shrink-0 flex items-center px-3 gap-2 h-9 border-b border-zinc-700 cursor-pointer hover:bg-zinc-800/50 transition-colors'
+            className='shrink-0 flex flex-col border-b border-zinc-700'
             style={{ opacity: 0 }}
           >
-            <div className='flex items-center gap-1 ml-1' onClick={e => e.stopPropagation()}>
-              <MagnifyingGlassIcon className='w-3.5 h-3.5 text-zinc-500 shrink-0' />
+            {/* Find row */}
+            <div
+              role='button'
+              tabIndex={0}
+              onClick={() => isFullscreen ? toggleFullscreen() : close()}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { if (isFullscreen) toggleFullscreen(); else close() } }}
+              className='flex items-center px-3 gap-2 h-9 cursor-pointer hover:bg-zinc-800/50 transition-colors'
+            >
+              <div className='flex items-center gap-1 ml-1' onClick={e => e.stopPropagation()}>
+                <MagnifyingGlassIcon className='w-3.5 h-3.5 text-zinc-500 shrink-0' />
+                <input
+                  type='search'
+                  placeholder='Find…'
+                  value={findText}
+                  onChange={e => handleFindChange(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); nav(e.shiftKey ? 'prev' : 'next') } }}
+                  className='bg-zinc-950 border border-white/20 rounded px-1.5 py-0.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36'
+                />
+                <button
+                  onClick={toggleCase}
+                  title='Match case'
+                  className={`rounded px-1 py-0.5 text-xs font-mono transition-colors shrink-0 ${caseSensitive ? 'text-indigo-400 bg-indigo-500/20 border border-indigo-500/40' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >Aa</button>
+                {findText && (
+                  <>
+                    <span className='text-xs text-zinc-500 shrink-0'>{matchCount}</span>
+                    <button onClick={() => nav('prev')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
+                      <ChevronLeftIcon className='w-3.5 h-3.5' />
+                    </button>
+                    <button onClick={() => nav('next')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
+                      <ChevronRightIcon className='w-3.5 h-3.5' />
+                    </button>
+                  </>
+                )}
+              </div>
+              <div className='flex-1' />
+              <div className='flex items-center gap-0.5' onClick={e => e.stopPropagation()}>
+                <button
+                  onClick={toggleFullscreen}
+                  title={isFullscreen ? 'Restore' : 'Expand to fullscreen'}
+                  className='rounded p-1 text-zinc-500 hover:text-white hover:bg-white/10 transition-colors'
+                >
+                  <ChevronUpIcon className={`w-4 h-4 transition-transform duration-200 ${isFullscreen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
+            </div>
+            {/* Replace row */}
+            <div className='flex items-center gap-1 px-3 pb-1.5 ml-1' onClick={e => e.stopPropagation()}>
+              <span className='w-3.5 text-center text-zinc-600 text-xs shrink-0'>→</span>
               <input
-                type='search'
-                placeholder='Find…'
-                value={findText}
-                onChange={e => handleFindChange(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); nav(e.shiftKey ? 'prev' : 'next') } }}
+                type='text'
+                placeholder='Replace…'
+                value={replaceText}
+                onChange={e => handleReplaceChange(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); doReplaceNext() } }}
                 className='bg-zinc-950 border border-white/20 rounded px-1.5 py-0.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36'
               />
               {findText && (
                 <>
-                  <span className='text-xs text-zinc-500 shrink-0'>{matchCount}</span>
-                  <button onClick={() => nav('prev')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
-                    <ChevronLeftIcon className='w-3.5 h-3.5' />
-                  </button>
-                  <button onClick={() => nav('next')} disabled={!matchCount} className='rounded p-1 text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>
-                    <ChevronRightIcon className='w-3.5 h-3.5' />
-                  </button>
+                  <button onClick={doReplaceNext} disabled={!matchCount} className='rounded px-1.5 py-0.5 text-xs text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>Replace</button>
+                  <button onClick={doReplaceAll}  disabled={!matchCount} className='rounded px-1.5 py-0.5 text-xs text-zinc-300 hover:text-white hover:bg-white/10 disabled:opacity-30 transition-colors'>All</button>
                 </>
               )}
-            </div>
-            <div className='flex-1' />
-            <div className='flex items-center gap-0.5' onClick={e => e.stopPropagation()}>
-              <button
-                onClick={toggleFullscreen}
-                title={isFullscreen ? 'Restore' : 'Expand to fullscreen'}
-                className='rounded p-1 text-zinc-500 hover:text-white hover:bg-white/10 transition-colors'
-              >
-                <ChevronUpIcon className={`w-4 h-4 transition-transform duration-200 ${isFullscreen ? 'rotate-180' : ''}`} />
-              </button>
             </div>
           </div>
 

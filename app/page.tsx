@@ -7,9 +7,9 @@ import LandingZone          from '@/components/LandingZone'
 import ConfigPanel          from '@/components/ConfigPanel'
 import Preview              from '@/components/Preview'
 import ChartStylePanel      from '@/components/ChartStylePanel'
-import { useStudio }        from '@/app/hooks/useStudio'
+import { useBartender }     from '@/app/hooks/useBartender'
 
-export default function StudioPage() {
+export default function BartenderPage() {
   const [stylePanelOpen, setStylePanelOpen] = useState(false)
   const {
     uploadedFile,
@@ -18,7 +18,7 @@ export default function StudioPage() {
     toolbarProps,
     previewProps,
     configPanelProps,
-  } = useStudio()
+  } = useBartender()
 
   if (!uploadedFile) {
     return (
@@ -51,7 +51,7 @@ export default function StudioPage() {
       ) : undefined}
       navbar={<span className="text-sm font-medium text-white">Bartender</span>}
     >
-      {/* ── Studio ───────────────────────────────────────────────── */}
+      {/* ── bartender ───────────────────────────────────────────────── */}
       <div className="relative flex flex-col h-full min-h-0 overflow-hidden">
         {/* Main canvas */}
         <div className="flex-1 min-h-0 overflow-y-auto p-6">

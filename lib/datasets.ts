@@ -10,6 +10,7 @@ export type SplitBy   = 'none' | 'row' | 'column'
 
 export interface MetricEntry {
   label:             string
+  displayLabel?:     string
   chartType:         ChartType
   pivot:             boolean
   splitBy:           SplitBy
@@ -34,12 +35,14 @@ export function parseMetrics(json: string): MetricEntry[] {
     if (!Array.isArray(datasets) || !datasets[0]?.metrics) return []
     return (datasets[0].metrics as {
       label: string
+      displayLabel?: string
       chartType?: ChartType
       pivot?: boolean
       splitBy?: SplitBy
       showClusterLabels?: boolean
     }[]).map(m => ({
       label:             m.label,
+      displayLabel:      m.displayLabel,
       chartType:         m.chartType ?? 'bar',
       pivot:             m.pivot ?? false,
       splitBy:           m.splitBy ?? 'none',

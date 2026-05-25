@@ -1,7 +1,7 @@
 /**
  * /api/config
  * GET  → returns the current merged ChartConfig (defaults + any saved override)
- * POST → saves a partial override to studio/config.json; returns merged config
+ * POST → saves a partial override to bartender/config.json; returns merged config
  */
 import { NextRequest, NextResponse } from 'next/server'
 import { readFileSync, writeFileSync, existsSync } from 'fs'
